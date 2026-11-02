@@ -1,10 +1,10 @@
 import { dateAtTick } from './calendar';
 import { stableSerialize } from './hash';
 import type {
-  ActorAction, ActorState, BalanceLedger, CanalReachState, Commitment, Demand,
-  Inventory, Petition, PreservationLiability, ProjectLaborSource, ProjectState,
-  RegionState, ScenarioDefinition, ShipmentBatch, TransportEdge, TransportNode,
-  WaterEdge, WaterNode,
+  ActorAction, ActorState, BalanceLedger, BalanceParameters, CanalReachState, Commitment, Demand,
+  Inventory, LaborParameters, LoadClass, Petition, PreservationLiability, ProjectLaborSource,
+  ProjectParameters, ProjectState, RegionState, ScenarioDefinition, ShipmentBatch, TransportEdge,
+  TransportNode, WaterEdge, WaterNode,
 } from './types';
 
 type Check = (value: unknown, path: string) => void;
@@ -32,7 +32,8 @@ const shape = <T>(fields: { [K in keyof T]-?: Check }): Check => (value, path) =
   for (const key of Object.keys(data)) if (!Object.hasOwn(fields, key)) fail(`${path}.${key}`, 'unknown field');
   for (const [key, check] of Object.entries<Check>(fields)) check(data[key], `${path}.${key}`);
 };
-const quantity = integer(), rate = integer(0, 10000), signed = integer(-Number.MAX_SAFE_INTEGER);
+const quantity = integer(), rate = integer(0, 10000), multiplier = integer(0, 100000);
+const signed = integer(-Number.MAX_SAFE_INTEGER);
 const ids = list(text), load = oneOf('small', 'standard', 'heavy');
 const periods: Check = (value, path) => {
   list(integer(0, 35))(value, path);
@@ -80,23 +81,26 @@ const reach = shape<CanalReachState>({
 const commitment = shape<Commitment>({
   id: text, actorId: text, projectId: nullable(text), regionId: text,
   resource: oneOf('treasury', 'grain', 'materials', 'labor'), amount: quantity,
-  consumed: quantity, reserved: quantity, fromTick: quantity, untilTick: quantity,
+  consumed: quantity, reserved: quantity, refunded: quantity, fromTick: quantity, untilTick: quantity,
   firmness: oneOf('hard', 'revocable'), status: oneOf('promised', 'escrowed', 'withdrawn', 'fulfilled'),
   sourceEventId: nullable(text),
 });
 const project = shape<ProjectState>({
   id: text, kind: oneOf('build', 'dredge', 'upgrade', 'reroute'), reachIds: ids, sponsorIds: ids,
-  grade: load, laborMode: oneOf('normal', 'urgent'), startTick: quantity,
+  grade: load, laborMode: oneOf('normal', 'urgent'), startTick: quantity, allocationWeight: integer(1),
   phase: oneOf('survey', 'planned', 'construction', 'trial', 'operating', 'cancelled'),
   status: oneOf('active', 'paused', 'cancelled'), workRequired: quantity, workCompleted: quantity,
   grainSpent: quantity, materialsSpent: quantity, treasurySpent: quantity, commitmentIds: ids,
   laborSources: list(shape<ProjectLaborSource>({ regionId: text, requested: quantity, arrived: quantity, arrivalTick: quantity })),
-  earliestCompletionTick: nullable(quantity), latestCompletionTick: nullable(quantity), replacesReachId: nullable(text),
+  earliestCompletionTick: nullable(quantity), latestCompletionTick: nullable(quantity),
+  trialTicksRemaining: quantity, replacesReachId: nullable(text),
 });
 const liability = shape<PreservationLiability>({
-  id: text, reachId: text, projectId: text, responsibleActorId: text, minimumLabor: quantity,
-  minimumTreasury: quantity, reservedTreasury: quantity, exitWorkRequired: quantity, exitWorkCompleted: quantity,
-  risk: rate, status: oneOf('unresolved', 'preserved', 'resolved'),
+  id: text, reachId: text, projectId: nullable(text), responsibleActorId: text,
+  cause: oneOf('project_cancelled', 'reach_status', 'reroute'),
+  minimumLabor: quantity, minimumTreasury: quantity, reservedTreasury: quantity,
+  exitWorkRequired: quantity, exitWorkCompleted: quantity, risk: rate,
+  status: oneOf('unresolved', 'preserved', 'resolved'),
 });
 const demand = shape<Demand>({
   id: text, demandKey: text, ownerId: text, fromNodeId: text, toNodeId: text,
@@ -116,8 +120,31 @@ const petition = shape<Petition>({
   factIds: ids, eventIds: ids, urgency: rate, deadlineTick: nullable(quantity), affectedPopulation: quantity,
   status: oneOf('open', 'responded', 'resolved'), lastChangedTick: quantity, cooldownUntil: quantity,
 });
+const preservation = shape<ProjectParameters['preservation'][LoadClass]>({
+  minimumTreasuryUnits: quantity, minimumLaborUnits: quantity, exitWorkFractionBp: rate,
+});
+const projectParameters = shape<ProjectParameters>({
+  workUnitsByGrade: shape({ small: quantity, standard: quantity, heavy: quantity }),
+  workMultiplierByKindBp: shape({ build: multiplier, dredge: multiplier, upgrade: multiplier, reroute: multiplier }),
+  dredgeSiltReductionBpByGrade: shape({ small: rate, standard: rate, heavy: rate }),
+  treasuryUnitsPerWork: quantity, grainUnitsPerWork: quantity, materialUnitsPerWork: quantity,
+  trialTicks: quantity, completionUncertaintyBp: rate, pausedDamageBpPerTick: rate,
+  preservation: shape({ small: preservation, standard: preservation, heavy: preservation }),
+});
+const laborParameters = shape<LaborParameters>({
+  burdenUnitsPerHundredForcedLabor: quantity, burdenRecoveryUnitsPerTick: quantity,
+  remoteArrivalTicks: quantity,
+  maintenanceMultiplierBp: shape({ minimum: multiplier, standard: multiplier, intensive: multiplier }),
+  siltMaintenanceSurchargeBp: multiplier,
+  normalProjectLaborUnitsByGrade: shape({ small: quantity, standard: quantity, heavy: quantity }),
+  urgentLaborMultiplierBp: multiplier,
+});
+const balanceParameters = shape<BalanceParameters>({
+  version: text, labor: laborParameters, projects: projectParameters,
+});
 const scenarioCheck = shape<ScenarioDefinition>({
   id: text, version: text, rulesVersion: text, calendar: shape({ startYear: signed }), endTick: integer(1),
+  parameters: balanceParameters,
   initial: shape<ScenarioDefinition['initial']>({
     regions: list(region), actors: list(actor), actions: list(action), inventories: list(inventory),
     waterNodes: list(waterNode), waterEdges: list(waterEdge), transportNodes: list(transportNode),
@@ -174,7 +201,8 @@ export function validateScenario(scenario: ScenarioDefinition): void {
   }
   for (const c of s.commitments) {
     ref(c.actorId, s.actors, c.id); ref(c.projectId, s.projects, c.id); ref(c.regionId, s.regions, c.id);
-    range(c.fromTick, c.untilTick, c.id); range(c.consumed + c.reserved, c.amount, c.id);
+    range(c.fromTick, c.untilTick, c.id);
+    if (c.consumed + c.reserved + c.refunded !== c.amount) fail(c.id, 'commitment does not reconcile');
   }
   for (const p of s.projects) {
     refs(p.reachIds, s.reaches, p.id); refs(p.sponsorIds, s.actors, p.id); refs(p.commitmentIds, s.commitments, p.id);

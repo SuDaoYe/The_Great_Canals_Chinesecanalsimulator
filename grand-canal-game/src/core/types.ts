@@ -78,7 +78,7 @@ export interface CanalReachState {
 export interface Commitment {
   id: EntityId; actorId: EntityId; projectId: EntityId | null; regionId: EntityId;
   resource: 'treasury' | 'grain' | 'materials' | 'labor';
-  amount: number; consumed: number; reserved: number;
+  amount: number; consumed: number; reserved: number; refunded: number;
   fromTick: Tick; untilTick: Tick; firmness: 'hard' | 'revocable';
   status: 'promised' | 'escrowed' | 'withdrawn' | 'fulfilled'; sourceEventId: EntityId | null;
 }
@@ -87,16 +87,17 @@ export interface ProjectLaborSource {
 }
 export interface ProjectState {
   id: EntityId; kind: ProjectKind; reachIds: readonly EntityId[]; sponsorIds: readonly EntityId[];
-  grade: LoadClass; laborMode: LaborMode; startTick: Tick;
+  grade: LoadClass; laborMode: LaborMode; startTick: Tick; allocationWeight: number;
   phase: 'survey' | 'planned' | 'construction' | 'trial' | 'operating' | 'cancelled';
   status: 'active' | 'paused' | 'cancelled'; workRequired: LaborUnit; workCompleted: LaborUnit;
   grainSpent: GrainUnit; materialsSpent: MaterialUnit; treasurySpent: TreasuryUnit;
   commitmentIds: readonly EntityId[]; laborSources: readonly ProjectLaborSource[];
   earliestCompletionTick: Tick | null; latestCompletionTick: Tick | null;
-  replacesReachId: EntityId | null;
+  trialTicksRemaining: number; replacesReachId: EntityId | null;
 }
 export interface PreservationLiability {
-  id: EntityId; reachId: EntityId; projectId: EntityId; responsibleActorId: EntityId;
+  id: EntityId; reachId: EntityId; projectId: EntityId | null; responsibleActorId: EntityId;
+  cause: 'project_cancelled' | 'reach_status' | 'reroute';
   minimumLabor: LaborUnit; minimumTreasury: TreasuryUnit; reservedTreasury: TreasuryUnit;
   exitWorkRequired: LaborUnit; exitWorkCompleted: LaborUnit; risk: BasisPoints;
   status: 'unresolved' | 'preserved' | 'resolved';
@@ -127,22 +128,99 @@ export interface LaborAllocation {
   regionId: EntityId; actorId: EntityId; activityId: EntityId;
   requested: LaborUnit; allocated: LaborUnit; unmet: LaborUnit;
 }
+export interface AgricultureLoss {
+  regionId: EntityId; allocatedLabor: LaborUnit; requiredLabor: LaborUnit; lostOutput: GrainUnit;
+}
 export interface BalanceLedger {
   opening: number; incoming: number; outgoing: number; consumed: number; closing: number;
 }
 export interface TickLedger {
-  tick: Tick; labor: readonly LaborAllocation[]; water: BalanceLedger; cargo: BalanceLedger;
+  tick: Tick; labor: readonly LaborAllocation[]; agricultureLoss: readonly AgricultureLoss[];
+  water: BalanceLedger; cargo: BalanceLedger;
 }
 export interface RngStates { weather: number; actors: number; disasters: number }
 export type RngStream = keyof RngStates;
 
-// Only confirmed foundation events exist in T01. Later tasks extend this union
-// with concrete payloads when their reducers and mechanisms are implemented.
-export interface DomainEvent {
+// Experimental model coefficients, kept separate from scenario evidence.
+// Every field is a synthetic game unit; none is a measured historical value.
+export interface LaborParameters {
+  burdenUnitsPerHundredForcedLabor: number;
+  burdenRecoveryUnitsPerTick: LaborUnit;
+  remoteArrivalTicks: number;
+  maintenanceMultiplierBp: Readonly<Record<MaintenancePolicy, BasisPoints>>;
+  // Experimental: at silt=10000 this is the added maintenance-labor fraction.
+  siltMaintenanceSurchargeBp: BasisPoints;
+  normalProjectLaborUnitsByGrade: Readonly<Record<LoadClass, LaborUnit>>;
+  urgentLaborMultiplierBp: BasisPoints;
+}
+export interface PreservationParameters {
+  minimumTreasuryUnits: TreasuryUnit;
+  minimumLaborUnits: LaborUnit;
+  exitWorkFractionBp: BasisPoints;
+}
+export interface ProjectParameters {
+  workUnitsByGrade: Readonly<Record<LoadClass, LaborUnit>>;
+  workMultiplierByKindBp: Readonly<Record<ProjectKind, BasisPoints>>;
+  // Experimental: share of the current silt a dredge of each grade removes.
+  dredgeSiltReductionBpByGrade: Readonly<Record<LoadClass, BasisPoints>>;
+  treasuryUnitsPerWork: TreasuryUnit;
+  grainUnitsPerWork: GrainUnit;
+  materialUnitsPerWork: MaterialUnit;
+  trialTicks: number;
+  completionUncertaintyBp: BasisPoints;
+  pausedDamageBpPerTick: BasisPoints;
+  preservation: Readonly<Record<LoadClass, PreservationParameters>>;
+}
+export interface BalanceParameters {
+  version: string; labor: LaborParameters; projects: ProjectParameters;
+}
+
+export interface TickCompletedEvent {
   id: EntityId; tick: Tick; type: 'TICK_COMPLETED'; source: 'system';
   causeIds: readonly EntityId[]; facts: readonly Fact[];
   delta: { fromTick: Tick; toTick: Tick; observationEnded: boolean };
 }
+export interface ProjectPlannedEvent {
+  id: EntityId; tick: Tick; type: 'PROJECT_PLANNED'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: {
+    commandId: string; project: ProjectState; commitments: readonly Commitment[];
+    escrow: readonly { actorId: EntityId; amount: TreasuryUnit }[];
+  };
+}
+export interface ProjectStatusSetEvent {
+  id: EntityId; tick: Tick; type: 'PROJECT_STATUS_SET'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: { commandId: string; projectId: EntityId; status: 'paused' | 'active' | 'cancelled' };
+}
+export interface PassageSetEvent {
+  id: EntityId; tick: Tick; type: 'PASSAGE_SET'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: {
+    commandId: string; reachId: EntityId; policy: PassagePolicy; maxLoadClass: LoadClass;
+    schedule: PassageSchedule; closedUntil: Tick | null;
+  };
+}
+export interface MaintenanceSetEvent {
+  id: EntityId; tick: Tick; type: 'MAINTENANCE_SET'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: { commandId: string; reachId: EntityId; policy: MaintenancePolicy };
+}
+export interface WaterPolicySetEvent {
+  id: EntityId; tick: Tick; type: 'WATER_POLICY_SET'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: { commandId: string; nodeId: EntityId; policy: WaterPolicy };
+}
+export interface ReachStatusSetEvent {
+  id: EntityId; tick: Tick; type: 'REACH_STATUS_SET'; source: 'player';
+  causeIds: readonly EntityId[]; facts: readonly Fact[];
+  delta: {
+    commandId: string; reachId: EntityId;
+    status: 'active' | 'mothballed' | 'decommissioning';
+  };
+}
+export type DomainEvent = TickCompletedEvent | ProjectPlannedEvent | ProjectStatusSetEvent
+  | PassageSetEvent | MaintenanceSetEvent | WaterPolicySetEvent | ReachStatusSetEvent;
 export interface ScheduledEvent { effectiveTick: Tick; event: DomainEvent }
 // This is a time boundary marker, not a T07 world/legacy assessment.
 export interface EndingState { reason: 'observation_end'; tick: Tick }
@@ -156,13 +234,51 @@ export interface SimulationEntities {
 }
 export type ScenarioDefinition = DeepReadonly<{
   id: EntityId; version: string; rulesVersion: string; calendar: CalendarDefinition; endTick: Tick;
+  parameters: BalanceParameters;
   initial: SimulationEntities;
 }>;
 export type GameState = DeepReadonly<SimulationEntities & {
   scenarioId: EntityId; scenarioVersion: string; rulesVersion: string;
-  calendar: CalendarDefinition; endTick: Tick; revision: number; tick: Tick;
+  calendar: CalendarDefinition; endTick: Tick; parameters: BalanceParameters;
+  revision: number; tick: Tick;
   rngStates: RngStates; appliedCommandIds: readonly string[];
   pendingEvents: readonly ScheduledEvent[]; events: readonly DomainEvent[];
   ledger: TickLedger; ending: EndingState | null;
 }>;
 export interface StepResult { state: GameState; events: readonly DeepReadonly<DomainEvent>[] }
+export interface TickStepResult {
+  state: GameState; events: readonly DeepReadonly<TickCompletedEvent>[];
+}
+
+export type PlayerCommand =
+  | { type: 'PLAN_PROJECT'; projectKind: ProjectKind;
+      reachIds: readonly EntityId[]; grade: LoadClass; laborMode: LaborMode;
+      startTick: Tick; sponsorIds: readonly EntityId[];
+      laborRegionIds?: readonly EntityId[]; replacesReachId?: EntityId | null }
+  | { type: 'SET_PROJECT_STATUS'; projectId: EntityId;
+      status: 'paused' | 'active' | 'cancelled' }
+  | { type: 'SET_MAINTENANCE'; reachId: EntityId; policy: MaintenancePolicy }
+  | { type: 'SET_PASSAGE'; reachId: EntityId; policy: PassagePolicy;
+      maxLoadClass: LoadClass; schedule: PassageSchedule; closedUntil: Tick | null }
+  | { type: 'SET_WATER_POLICY'; nodeId: EntityId; policy: WaterPolicy }
+  | { type: 'SET_REACH_STATUS'; reachId: EntityId;
+      status: 'active' | 'mothballed' | 'decommissioning' };
+
+export interface CommandEnvelope {
+  commandId: string; expectedRevision: number; command: PlayerCommand;
+}
+export type CommandErrorCode = 'STALE_REVISION' | 'DUPLICATE_COMMAND' | 'INVALID_TARGET'
+  | 'INVALID_PHASE' | 'INVALID_TIME' | 'INSUFFICIENT_COMMITMENT' | 'INFEASIBLE_ROUTE';
+export interface CommandError { code: CommandErrorCode; message: string; relatedIds: readonly string[] }
+export type CommandResult =
+  | ({ ok: true } & StepResult)
+  | { ok: false; state: GameState; error: CommandError };
+export interface PreviewEstimate {
+  siteRegionId: EntityId | null; workRequired: LaborUnit | null;
+  treasuryRequired: TreasuryUnit; grainAtSiteRequired: GrainUnit; materialsRequired: MaterialUnit;
+  laborPerTick: LaborUnit; earliestCompletionTick: Tick | null; latestCompletionTick: Tick | null;
+}
+export interface PreviewResult {
+  feasible: boolean; errors: readonly CommandError[]; estimate: PreviewEstimate | null;
+  impacts: readonly string[]; unknowns: readonly string[];
+}

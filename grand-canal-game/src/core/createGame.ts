@@ -27,9 +27,10 @@ export function createGame(scenario: ScenarioDefinition, seed: number): GameStat
       .reduce((sum, b) => sum + b.quantity, 0);
   return freezeOwned({
     ...initial, scenarioId: owned.id, scenarioVersion: owned.version, rulesVersion: owned.rulesVersion,
-    calendar: owned.calendar, endTick: owned.endTick, tick: 0, revision: 0,
+    calendar: owned.calendar, endTick: owned.endTick, parameters: owned.parameters,
+    tick: 0, revision: 0,
     rngStates, appliedCommandIds: [], pendingEvents: [], events: [],
-    ledger: { tick: 0, labor: [], water: stationaryBalance(water), cargo: stationaryBalance(cargo) },
+    ledger: { tick: 0, labor: [], agricultureLoss: [], water: stationaryBalance(water), cargo: stationaryBalance(cargo) },
     ending: null,
   });
 }
