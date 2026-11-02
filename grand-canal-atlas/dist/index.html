@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="面向大运河模拟器前期研究的中国运河历史地图集，按朝代探索人工水道、天然水系、工程代价及原始证据。">
+  <title>河山通鉴 · 中国运河历史地图集</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script defer src="assets/data.js"></script>
+  <script defer src="assets/geography.js"></script>
+  <script defer src="assets/core.js"></script>
+  <script defer src="assets/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#map-heading">跳到地图</a>
+  <header class="masthead">
+    <a class="wordmark" href="./index.html" aria-label="河山通鉴首页"><span class="seal" aria-hidden="true">河<br>鉴</span><span>河山通鉴<small>中国运河历史地图集</small></span></a>
+    <p class="header-verse">一脉水道，读懂中国的营造与流转。</p>
+    <nav aria-label="资料工具"><button id="sources-open">史料与核查 <span id="source-count"></span></button><button id="guide-open">读图说明</button><button id="download-json" class="download">下载资料</button></nav>
+  </header>
+
+  <main class="atlas-layout">
+    <aside class="explorer" aria-label="时代与图层控制">
+      <div class="sidebar-title"><span class="section-index">卷一 · 水道</span><h1>循水而观，<br>见一国之变。</h1><p>从诸侯凿渠到南粮北运，<br>把工程放回它所处的山河。</p></div>
+      <div class="view-switch" role="group" aria-label="地图显示模式"><button id="mode-network" class="active" aria-pressed="true">时代水网</button><button id="mode-all" aria-pressed="false">历代叠加</button></div>
+      <section class="layer-section"><h2>水系图层</h2>
+        <label class="toggle-row"><span><i class="sample natural"></i>天然河流参照<small>现代河道，辅助定位</small></span><input type="checkbox" id="layer-natural" checked></label>
+        <label class="toggle-row"><span><i class="sample ancient"></i>历史黄河下游<small>按时期绘制的方向示意</small></span><input type="checkbox" id="layer-historic" checked></label>
+        <label class="toggle-row"><span><i class="sample built"></i>人工运河与水工<small>新凿、扩浚、复修分别说明</small></span><input type="checkbox" id="layer-canals" checked></label>
+        <label class="toggle-row"><span><i class="sample city"></i>城镇与节点</span><input type="checkbox" id="layer-cities" checked></label>
+        <label class="construction-toggle"><input type="checkbox" id="only-new">仅看本期工程 <span>包含本期复修</span></label>
+      </section>
+      <section class="route-section"><div class="section-heading"><h2>水道索引</h2><span id="route-count"></span></div><label class="search-box"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5"></path></svg><input id="route-search" type="search" placeholder="查找水道、地名或水系" aria-label="查找水道、地名或水系"></label><div id="route-list" class="route-list"></div></section>
+      <p class="sidebar-foot">大运河模拟器 · 前期资料库<br>核读日期 2026.11.02 <span>第一卷</span></p>
+    </aside>
+
+    <section class="map-column" aria-labelledby="map-heading">
+      <div class="map-caption"><div><span id="era-years"></span><h2 id="map-heading"></h2></div><div class="map-context"><span id="map-scope">运河走廊</span><small>经纬定位 · 文献示意</small></div></div>
+      <div class="map-stage" id="map-stage">
+        <svg id="atlas-map" viewBox="500 245 255 230" role="img" aria-label="中国运河互动地图；使用左侧水道索引可通过键盘选择工程" tabindex="0">
+          <defs>
+            <pattern id="paper-lines" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M0 7H7" stroke="#a9966d" stroke-width=".2" opacity=".13"/></pattern>
+            <filter id="map-soft"><feGaussianBlur stdDeviation="1.5"/></filter>
+          </defs>
+          <rect x="-250" y="-250" width="1700" height="1500" fill="#dce3da"/>
+          <g id="land-layer"></g><g id="locator-layer"></g>
+          <rect x="-250" y="-250" width="1700" height="1500" fill="url(#paper-lines)" pointer-events="none"/>
+          <g id="graticule-layer"></g><g id="terrain-labels"></g>
+          <g id="natural-layer"></g><g id="historic-layer"></g>
+          <g id="canals-layer"></g><g id="cities-layer"></g>
+        </svg>
+        <div class="map-flourish" aria-hidden="true"><span>北</span><svg viewBox="0 0 36 64"><path d="M18 2 9 37 18 31 27 37Z" fill="currentColor"/><path d="M18 31V60M7 47h22" stroke="currentColor" fill="none"/></svg></div>
+        <div class="map-tools" aria-label="地图视图"><button id="zoom-in" title="放大地图" aria-label="放大地图">＋</button><button id="zoom-out" title="缩小地图" aria-label="缩小地图">−</button><span></span><button id="focus-corridor">运河走廊</button><button id="focus-country">全国总览</button><button id="reset-map" title="还原当前模式视图">复位</button></div>
+        <div class="map-key" id="map-key"><span><i class="sample natural"></i>天然参照</span><span><i class="sample built"></i>本期工程</span><span><i class="sample inherited"></i>沿用走廊</span></div>
+        <div class="country-title" aria-hidden="true">山河为卷<br><span>水道为经</span></div>
+        <div id="dynasty-legend" class="dynasty-legend" hidden></div>
+        <div class="scale-bar" aria-label="经纬度参考"><span>约略位置</span><i></i><small>非测绘地图</small></div>
+      </div>
+      <div class="map-note"><span>读图</span><p id="map-warning">现代地理为底；古河道按文献途经点示意，非考古复原。叠加不代表同时通航。</p><button id="export-svg" title="导出当前视图的SVG地图">导出地图</button></div>
+      <div class="era-summary"><span id="era-symbol" aria-hidden="true">隋</span><div><h3 id="era-title"></h3><p id="era-summary"></p></div><button id="events-open">查看本期事件</button></div>
+    </section>
+
+    <aside class="detail-panel" aria-label="所选工程资料" id="detail-panel"><div id="detail-content" aria-live="polite"></div></aside>
+  </main>
+
+  <footer class="chronology"><div class="timeline-title"><span>以朝代观水道</span><small>不是逐年通航复原</small></div><button id="era-prev" class="era-arrow" aria-label="上一个历史阶段">‹</button><div id="era-timeline" class="era-timeline" role="group" aria-label="选择历史阶段"></div><button id="era-next" class="era-arrow" aria-label="下一个历史阶段">›</button></footer>
+
+  <dialog id="info-dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="dialog-close" aria-label="关闭资料窗口">×</button></div><div id="dialog-body"></div></dialog>
+  <div id="toast" role="status" class="toast" hidden></div>
+  <noscript><p class="noscript">互动地图需要启用 JavaScript。文本资料可在上级文件夹的 wiki 目录中直接阅读。</p></noscript>
+</body>
+</html>

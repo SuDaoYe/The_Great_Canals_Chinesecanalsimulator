@@ -1,0 +1,220 @@
+[
+  {
+    "id": "S01",
+    "file": "raw/S01.md",
+    "sha256": "6131bcb9ada74c4d3bff7e5263bc70dee6ede9052a07b6267062a2e4aafbc285",
+    "url": "https://whc.unesco.org/en/list/1443/"
+  },
+  {
+    "id": "S02",
+    "file": "raw/S02.md",
+    "sha256": "bac49933ef1156f6ea1b1f4d4dd3779bb96b436aa372b65db6240b6c06c67694",
+    "url": "https://www.grandcanalmuseum.cn/zhuantizhanlan/440.html"
+  },
+  {
+    "id": "S03",
+    "file": "raw/S03.md",
+    "sha256": "a3ab9afd99dfa7a598a941ef3a356eefd92a444894f58adc76b5e41c38c482e7",
+    "url": "https://www.ecsponline.com/yz/B6094F718684F44A29E42B45EEC5BB2D5000.pdf"
+  },
+  {
+    "id": "S04",
+    "file": "raw/S04.md",
+    "sha256": "9f39ae32701bcbac70e09ade7e0f251fd32d6741b4cc2185243609f9d27602af",
+    "url": "https://www.jianhu.gov.cn/art/2026/1/8/art_32131_4394104.html"
+  },
+  {
+    "id": "S05",
+    "file": "raw/S05.md",
+    "sha256": "df93bf630ed089b8650ebe765eed1be76f1443fa62610480567e976d1355bcda",
+    "url": "https://www.chinawater.com.cn/df/hn/202009/t20200917_1011660.html"
+  },
+  {
+    "id": "S06",
+    "file": "raw/S06.md",
+    "sha256": "007c642ede09943fbfdec2def337f88e899020994d752d10a03d0d84e097c746",
+    "url": "https://www.igsnrr.cas.cn/cbkx/kpyd/dlzs/water/202009/t20200910_5692642.html"
+  },
+  {
+    "id": "S07",
+    "file": "raw/S07.md",
+    "sha256": "31cfe4b79e6aa59c6b4e46fbcf1422d9fb0f65493f099efc7facb2dcb4db16cb",
+    "url": "https://www.unesco.org/zh/articles/lianheguojiaokewenzuzhizhuhuadaibiaoxiazehanjiaoshouyixingkaochalingquhelingqubowuyuanbingyuhaizimen"
+  },
+  {
+    "id": "S08",
+    "file": "raw/S08.md",
+    "sha256": "b5e4f829ddafcf189fcbeb89f38ad2b7fcc8f07ecd693cb7f53f7c852e7525da",
+    "url": "https://zh.wikisource.org/wiki/史記/卷029",
+    "excerpt": "raw/S08-excerpts.md",
+    "excerptSha256": "cfc74912b1aba363d9492ea9244d6486203f5f6e2683eb73e22bfba6449bb54a"
+  },
+  {
+    "id": "S09",
+    "file": "raw/S09.md",
+    "sha256": "f1d50026c4d47248b09a8e07ba70b9075a21f0f78df3cdc880657a6bc332904e",
+    "url": "https://dfz.shaanxi.gov.cn/zslm/fzzlk/xbsxsz/szdylpdf/201404/P020240923622025233209.pdf"
+  },
+  {
+    "id": "S10",
+    "file": "raw/S10.md",
+    "sha256": "4d64b0b2295fec41a5f7a16801a8170444f8820a151cec82f3f7a6e49a0864ce",
+    "url": "https://www.cangzhoubwg.cn/list_21/91.html"
+  },
+  {
+    "id": "S11",
+    "file": "raw/S11.md",
+    "sha256": "9307c5105d86417992266ecd65a1a42149e6eef6f3e4fb05b92525c3007fb900",
+    "url": "https://www.shuizhishi.cn/c/2020-04-09/524100.shtml"
+  },
+  {
+    "id": "S12",
+    "file": "raw/S12.md",
+    "sha256": "ca7ed1b392e873b279314f4c7ab6c36ef0398674ad50d3eb1fd4c21b5b8bdd91",
+    "url": "https://www.jcgov.gov.cn/dtxx/gnyw/202309/t20230922_1857597.shtml"
+  },
+  {
+    "id": "S13",
+    "file": "raw/S13.md",
+    "sha256": "131eeea18b4264d0c6f74e091de7d7df68a09ac82a62eab6e805c5e01f5e0c29",
+    "url": "https://zh.wikisource.org/wiki/隋書/卷03",
+    "excerpt": "raw/S13-excerpts.md",
+    "excerptSha256": "973013339bcded7bf1ef71acb21ecfc651a7dedacbfdb8e3671051625f969830"
+  },
+  {
+    "id": "S14",
+    "file": "raw/S14.md",
+    "sha256": "8b31ae724cf613e9c8eff389ca229f5ad2c05674d5990ad44958589e776c3df2",
+    "url": "https://jsgd.jiangsu.gov.cn/art/2026/7/13/art_91546_11803208.html"
+  },
+  {
+    "id": "S15",
+    "file": "raw/S15.md",
+    "sha256": "52fcb27327a04acfd55e0c4e6c6656d142e6543aebde5ce8431c7ea4a136a525",
+    "url": "https://zh.wikisource.org/wiki/元史/卷064",
+    "excerpt": "raw/S15-excerpts.md",
+    "excerptSha256": "6eff6ba7b6dc49a29ff489c7e770dbce85dfc4d33560098f389bf00d4f92f964"
+  },
+  {
+    "id": "S16",
+    "file": "raw/S16.md",
+    "sha256": "d1b720763529312555506bf52e38f0e33d0c7ad56461984baee3bb855243e9e9",
+    "url": "https://zh.wikisource.org/wiki/明史/卷153",
+    "excerpt": "raw/S16-excerpts.md",
+    "excerptSha256": "f1b8d762fd54b2f2fe91dedb1c42560b27bb6455d612aeb00ba36795204e9828"
+  },
+  {
+    "id": "S17",
+    "file": "raw/S17.md",
+    "sha256": "bb275f0603b943e643d9d4c6fa68599ad542133928658a8f02a9256c353d4561",
+    "url": "https://sys.cufe.edu.cn/content.jsp?urltype=news.NewsContentUrl&wbnewsid=1529&wbtreeid=1054"
+  },
+  {
+    "id": "S18",
+    "file": "raw/S18.md",
+    "sha256": "47d29885094690e41079bb87267fd77ff17182d4021f8b3679b558ae19652379",
+    "url": "https://zgld.cbpt.cnki.net/portal/journal/portal/client/paper/cc2f1c96aabbf8871a9079d0855df307"
+  },
+  {
+    "id": "S19",
+    "file": "raw/S19.md",
+    "sha256": "6c490702469c842f30d62f4f2969efa1de7b46e8f967675e425cb95b4a39771e",
+    "url": "https://www.dpm.org.cn/Uploads/File/2019/11/25/u5ddbb7e042505.pdf"
+  },
+  {
+    "id": "S20",
+    "file": "raw/S20.md",
+    "sha256": "c7c79de471c0c0899a158faa9a9390b84bd9b037e14f33500ffdda2235611b16",
+    "url": "https://shandong-chorography.org/database/c2/section/7/article/256/"
+  },
+  {
+    "id": "S21",
+    "file": "raw/S21.md",
+    "sha256": "b545031e755891bf8011004077914b237b3c775bd71c7f01ed306ee6bc36411a",
+    "url": "https://iqh.ruc.edu.cn/old/zglsdlyj/lsdl_lzjj/xqzmddlyj/2df4d9b403fe4b64bcc2dafafa7c2b22.htm"
+  },
+  {
+    "id": "S22",
+    "file": "raw/S22.md",
+    "sha256": "c6843bd34b33ccafe8fd63587dc61309ca4337a46744b2be032a31be3bdd6a88",
+    "url": "https://slt.nx.gov.cn/slxc/jswm/dycr/202104/t20210409_2706733.html"
+  },
+  {
+    "id": "S23",
+    "file": "raw/S23.md",
+    "sha256": "59e87a6a6f5d3186e20db8c5431d0416cfee9685a7425585751efa3319bec1b5",
+    "url": "https://zx.huaian.gov.cn/col/14169_262675/art/17619264/1763431376876EdbHABVd.html"
+  },
+  {
+    "id": "S24",
+    "file": "raw/S24.md",
+    "sha256": "c11de9b4756b5122d87e372591c8f52050d9c6194cec7a29ad7c82b2b2503558",
+    "url": "https://kyy.squ.edu.cn/info/1072/1722.htm"
+  },
+  {
+    "id": "S25",
+    "file": "raw/S25.md",
+    "sha256": "9fad9f55e15a3c7b7ea04854c062584f5087faab3a7cd2358e81d978f540ff3a",
+    "url": "https://zx.huaian.gov.cn/col/14069_277241/art/17722944/17727623855850mJEDMas.html"
+  },
+  {
+    "id": "S26",
+    "file": "raw/S26.md",
+    "sha256": "e55d7ac7831247fe5a1336457561a3bd686f9f87aa2f99c0687f3d525fb57f9e",
+    "url": "https://www.zghaq.gov.cn/col/814_747345/art/20181221154831_fp8Cpx1z.html"
+  },
+  {
+    "id": "S27",
+    "file": "raw/S27.md",
+    "sha256": "46cd941e031e0f6385f87e2147c20312b6b9ebbb45b60e5f812345f4a38ffe28",
+    "url": "https://www.bjskpj.cn/beijing/25-history/19380-2024-03-22-02-43-51"
+  },
+  {
+    "id": "S28",
+    "file": "raw/S28.md",
+    "sha256": "5b0376af407f17e17365a48c6a9e8fa8399dc8e4f66719c74e630d1a368a96d6",
+    "url": "https://yunhe.china.com.cn/2022-06/30/content_42021301.htm"
+  },
+  {
+    "id": "S29",
+    "file": "raw/S29.md",
+    "sha256": "6ca012cf838f1d54a0ed5246119c50e7128527ccf545b361a4e1789d5c14c8ee",
+    "url": "https://www.naturalearthdata.com/about/terms-of-use/"
+  },
+  {
+    "id": "S30",
+    "file": "raw/S30.md",
+    "sha256": "c49605ea456dd5ac8de558e7061d6659303f3c0f9c2627e599eec23965dfc46f",
+    "url": "https://zjjcmspublic.oss-cn-hangzhou-zwynet-d01-a.internet.cloud.zj.gov.cn/jcms_files/jcms1/web3210/site/attach/0/c9022532d9754139962f48286d5f147d.pdf"
+  },
+  {
+    "id": "S31",
+    "file": "raw/S31.md",
+    "sha256": "092268dce249b9a623d66a2814b7fec334f6cb5391816883396bbad18f1d8082",
+    "url": "https://shandong-chorography.org/database/f063/section/40/article/7/"
+  },
+  {
+    "id": "S32",
+    "file": "raw/S32.md",
+    "sha256": "8893897b5e0796c1c2bc2c05c722a3a63bd286552d9b66f52f273183888c241d",
+    "url": "https://ghzrzyw.beijing.gov.cn/zhengwuxinxi/zxzt/mcbhdjt/yjnr/202106/t20210624_2420557.html"
+  },
+  {
+    "id": "S33",
+    "file": "raw/S33.md",
+    "sha256": "508571b927751cd821df6f26678e347aae054be1a2bf4f622d046e8406ee6994",
+    "url": "https://www.haqjp.gov.cn/upload/2020-07/e86aa6d3-ed4f-4849-9dc1-aec16ae85435.pdf"
+  },
+  {
+    "id": "S34",
+    "file": "raw/S34.md",
+    "sha256": "3b8ab6e0ba8f47ad6ef7736c299df83e182aa1dc6d9c0f1780937f5d65f5bf2c",
+    "url": "https://peking.bjd.com.cn/content/s63bb817de4b075b42c4237b0.html"
+  },
+  {
+    "id": "S35",
+    "file": "raw/S35.md",
+    "sha256": "e29e13fc92c6bb872836e3e0065871eb575dbaa1e70aecd057d048815b6beb12",
+    "url": "https://shandong-chorography.org/database/f063/section/39/article/7/"
+  }
+]
