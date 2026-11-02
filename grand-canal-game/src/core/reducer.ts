@@ -278,6 +278,9 @@ function applyTick(
     inventories: settlement.inventories,
     reaches: settlement.reaches,
     liabilities: settlement.liabilities,
+    demands: settlement.demands,
+    inTransit: settlement.inTransit,
+    waterNodes: settlement.waterNodes,
     ledger: settlement.ledger,
   } as GameState);
   const frozenInput = isDeepFrozen(state);
@@ -290,7 +293,9 @@ function applyTick(
     actions: safeSettlement.actions,
     projects: safeSettlement.projects, commitments: safeSettlement.commitments,
     inventories: safeSettlement.inventories, reaches: safeSettlement.reaches,
-    liabilities: safeSettlement.liabilities, ledger: safeSettlement.ledger,
+    liabilities: safeSettlement.liabilities, demands: safeSettlement.demands,
+    inTransit: safeSettlement.inTransit, waterNodes: safeSettlement.waterNodes,
+    ledger: safeSettlement.ledger,
     events: [structuredClone(event)],
     ending: event.delta.observationEnded ? { reason: 'observation_end', tick: event.tick } : null,
   });

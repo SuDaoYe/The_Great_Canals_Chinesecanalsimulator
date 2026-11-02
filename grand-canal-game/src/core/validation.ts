@@ -3,9 +3,10 @@ import { stableSerialize } from './hash';
 import type {
   ActorAction, ActorState, BalanceLedger, BalanceParameters, CanalReachState, Commitment, Demand,
   Inventory, LaborParameters, LoadClass, Petition, PreservationLiability, ProjectLaborSource,
-  ProjectParameters, ProjectState, RegionState, ScenarioDefinition, ShipmentBatch, TransportEdge,
-  TransportNode, WaterEdge, WaterNode,
+  ProjectParameters, ProjectState, RegionState, ScenarioDefinition, ShipmentBatch, SupplyParameters,
+  SupplyRule, TransportEdge, TransportNode, TransportParameters, WaterEdge, WaterNode, WaterParameters,
 } from './types';
+import { supplyDemandId, supplyDemandKey } from './supply';
 
 type Check = (value: unknown, path: string) => void;
 function fail(path: string, reason: string): never { throw new TypeError(`${path}: ${reason}`); }
@@ -105,14 +106,15 @@ const liability = shape<PreservationLiability>({
 const demand = shape<Demand>({
   id: text, demandKey: text, ownerId: text, fromNodeId: text, toNodeId: text,
   purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials'),
-  requested: quantity, fulfilled: quantity, reservedInTransit: quantity, cancelled: quantity,
-  deadlineTick: quantity, sourceEventId: nullable(text), status: oneOf('active', 'fulfilled', 'expired', 'cancelled'),
+  loadClass: load, requested: quantity, fulfilled: quantity, reservedInTransit: quantity,
+  cancelled: quantity, deadlineTick: quantity, sourceEventId: nullable(text),
+  status: oneOf('active', 'fulfilled', 'expired', 'cancelled'),
 });
 const shipment = shape<ShipmentBatch>({
   id: text, parentId: nullable(text), demandId: text, ownerId: text, purpose: oneOf('official', 'civil', 'trade'),
-  cargo: oneOf('grain', 'materials'), quantity: quantity, lost: quantity, routeEdgeIds: ids,
-  routeIndex: quantity, currentNodeId: text, remainingTravelTicks: quantity,
-  status: oneOf('waiting', 'travelling', 'delivered', 'lost'),
+  cargo: oneOf('grain', 'materials'), loadClass: load, quantity: quantity, lost: quantity,
+  routeEdgeIds: ids, routeIndex: quantity, currentNodeId: text, remainingTravelTicks: quantity,
+  status: oneOf('waiting', 'travelling', 'delivered', 'returned', 'lost'),
 });
 const petition = shape<Petition>({
   id: text, actorId: text, regionId: text, reachIds: ids,
@@ -139,8 +141,24 @@ const laborParameters = shape<LaborParameters>({
   normalProjectLaborUnitsByGrade: shape({ small: quantity, standard: quantity, heavy: quantity }),
   urgentLaborMultiplierBp: multiplier,
 });
+const waterParameters = shape<WaterParameters>({
+  navigationMinLevel: quantity,
+  irrigationPriorityBp: shape({ balanced: rate, navigation_first: rate, irrigation_first: rate }),
+});
+const transportParameters = shape<TransportParameters>({
+  maxBatchSizeByClass: shape({ small: integer(1), standard: integer(1), heavy: integer(1) }),
+  transitLaborPerLoad: quantity,
+  underfundedMaintenanceDamageBpPerTick: rate,
+});
+const supplyRule = shape<SupplyRule>({
+  id: text, sourceNodeId: text, destNodeId: text, ownerId: text,
+  purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials'),
+  targetStock: quantity, consumptionPerTick: quantity,
+});
+const supplyParameters = shape<SupplyParameters>({ rules: list(supplyRule) });
 const balanceParameters = shape<BalanceParameters>({
   version: text, labor: laborParameters, projects: projectParameters,
+  water: waterParameters, transport: transportParameters, supply: supplyParameters,
 });
 const scenarioCheck = shape<ScenarioDefinition>({
   id: text, version: text, rulesVersion: text, calendar: shape({ startYear: signed }), endTick: integer(1),
@@ -231,6 +249,69 @@ export function validateScenario(scenario: ScenarioDefinition): void {
   for (const p of s.petitions) {
     ref(p.actorId, s.actors, p.id); ref(p.regionId, s.regions, p.id); refs(p.reachIds, s.reaches, p.id);
   }
+  // Periodic supply rules are typed configuration, not free-form patches. Their
+  // IDs and generated demand IDs/keys must be unique, all node/actor refs must
+  // resolve, and both physical endpoints must be owned by the stated actor so a
+  // rule can never silently consume or deliver another actor's cargo.
+  const supplyRuleIds = new Set<string>();
+  const supplyTargets = new Set<string>();
+  for (const rule of scenario.parameters.supply.rules) {
+    if (supplyRuleIds.has(rule.id)) fail(rule.id, 'duplicate supply rule ID');
+    supplyRuleIds.add(rule.id);
+    ref(rule.sourceNodeId, s.transportNodes, rule.id);
+    ref(rule.destNodeId, s.transportNodes, rule.id);
+    ref(rule.ownerId, s.actors, rule.id);
+    if (rule.sourceNodeId === rule.destNodeId) fail(rule.id, 'supply source and destination must differ');
+    // Two rules must not independently book the same physical inventory
+    // deficit; otherwise they could oversupply one destination without any
+    // cargo being double-counted in the ledger.
+    const targetKey = `${rule.ownerId}\u0000${rule.cargo}\u0000${rule.destNodeId}`;
+    if (supplyTargets.has(targetKey)) {
+      fail(rule.id, 'overlapping supply rules target the same inventory deficit');
+    }
+    supplyTargets.add(targetKey);
+    const sourceNode = s.transportNodes.find(node => node.id === rule.sourceNodeId);
+    const destNode = s.transportNodes.find(node => node.id === rule.destNodeId);
+    if (sourceNode === undefined || destNode === undefined) continue;
+    const sourceInventory = s.inventories.find(item => item.id === sourceNode.inventoryId);
+    const destInventory = s.inventories.find(item => item.id === destNode.inventoryId);
+    if (sourceInventory === undefined || destInventory === undefined) continue;
+    if (sourceInventory.ownerId !== rule.ownerId) fail(rule.id, 'supply source stock is owned by another actor');
+    if (destInventory.ownerId !== rule.ownerId) fail(rule.id, 'supply destination stock is owned by another actor');
+    const generatedId = supplyDemandId(rule.id);
+    const generatedKey = supplyDemandKey(rule.id);
+    if (allIds.has(generatedId)) fail(rule.id, 'supply rule demand ID collides with an existing entity');
+    if (demandKeys.has(generatedKey)) fail(rule.id, 'supply rule demand key collides with an existing demand');
+  }
+  // The water network is a directed graph; unsupported loops are rejected rather
+  // than left to an unbounded transfer order (see FR-07 / architecture 7.1).
+  assertAcyclicWater(s.waterNodes, s.waterEdges);
+}
+
+// Kahn topological sort: a non-empty remainder means a directed water cycle.
+function assertAcyclicWater(
+  nodes: readonly WaterNode[], edges: readonly WaterEdge[],
+): void {
+  const ids = new Set(nodes.map(node => node.id));
+  const indegree = new Map<string, number>(nodes.map(node => [node.id, 0]));
+  const adjacency = new Map<string, string[]>(nodes.map(node => [node.id, []]));
+  for (const edge of edges) {
+    if (edge.toNodeId === null) continue;
+    adjacency.get(edge.fromNodeId)!.push(edge.toNodeId);
+    indegree.set(edge.toNodeId, (indegree.get(edge.toNodeId) ?? 0) + 1);
+  }
+  const queue = [...ids].filter(id => (indegree.get(id) ?? 0) === 0).sort();
+  let visited = 0;
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    visited += 1;
+    for (const next of [...(adjacency.get(id) ?? [])].sort()) {
+      const degree = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, degree);
+      if (degree === 0) queue.push(next);
+    }
+  }
+  if (visited !== nodes.length) fail('waterEdges', 'water network contains an unsupported directed cycle');
 }
 
 export function stationaryBalance(total: number): BalanceLedger {

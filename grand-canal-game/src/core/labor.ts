@@ -1,4 +1,5 @@
 import { actionLaborDemands, type ActivityDemand } from './actors';
+import { transportLaborDemands } from './transport';
 import type { GameState, LaborAllocation } from './types';
 
 function splitProportional(total: number, weights: readonly number[]): readonly number[] {
@@ -56,6 +57,11 @@ export function maintenanceLaborDemands(state: GameState): readonly ActivityDema
     if (regionId === undefined) continue;
     const region = state.regions.find(candidate => candidate.id === regionId);
     if (region === undefined) continue;
+    // Maintenance is paid work: an unaffordable reach is not maintained for free.
+    if (reach.maintenanceCost > 0) {
+      const treasury = state.actors.find(actor => actor.id === region.actorId)?.treasury ?? 0;
+      if (treasury < reach.maintenanceCost) continue;
+    }
     const surchargeBp = 10000 + Math.floor(
       reach.silt * state.parameters.labor.siltMaintenanceSurchargeBp / 10000);
     const requested = Math.ceil(reach.maintenanceLabor
@@ -172,6 +178,7 @@ export function allocateLabor(state: GameState, nextTick: number): readonly Labo
     ...projectLaborDemands(state),
     ...maintenanceLaborDemands(state),
     ...preservationLaborDemands(state),
+    ...transportLaborDemands(state),
   ];
   const rows: LaborAllocation[] = [];
   for (const region of [...state.regions].sort((a, b) => a.id < b.id ? -1 : 1)) {

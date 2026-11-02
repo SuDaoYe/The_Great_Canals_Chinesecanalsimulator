@@ -1,6 +1,7 @@
 import type {
-  ActorAction, BalanceParameters, CanalReachState, Commitment,
-  ProjectState, ScenarioDefinition, SimulationEntities,
+  ActorAction, ActorState, BalanceParameters, CanalReachState, Commitment, Demand,
+  Inventory, ProjectState, RegionState, ScenarioDefinition, SimulationEntities,
+  TransportEdge, TransportNode, WaterEdge, WaterNode,
 } from '../../src/core/types';
 
 export type FixtureName = 'minimal' | 'peace' | 'conscription' | 'palace-and-canal'
@@ -10,7 +11,7 @@ export type FixtureName = 'minimal' | 'peace' | 'conscription' | 'palace-and-can
 // historical labor, grain, money or water values.
 function parameters(): BalanceParameters {
   return {
-    version: 'g1-2',
+    version: 'g2-0',
     labor: {
       burdenUnitsPerHundredForcedLabor: 50,
       burdenRecoveryUnitsPerTick: 2,
@@ -36,6 +37,19 @@ function parameters(): BalanceParameters {
         heavy: { minimumTreasuryUnits: 60, minimumLaborUnits: 30, exitWorkFractionBp: 2500 },
       },
     },
+    // Synthetic abstract water/transport coefficients (not historical values).
+    water: {
+      navigationMinLevel: 1,
+      irrigationPriorityBp: { balanced: 5000, navigation_first: 0, irrigation_first: 10000 },
+    },
+    transport: {
+      maxBatchSizeByClass: { small: 20, standard: 50, heavy: 100 },
+      transitLaborPerLoad: 1,
+      underfundedMaintenanceDamageBpPerTick: 500,
+    },
+    // Empty by default: old fixtures keep their exact demand/consumption
+    // behavior, while tests may opt in to explicit periodic supply rules.
+    supply: { rules: [] },
   };
 }
 
@@ -123,7 +137,7 @@ function workScenario(id: 'peace' | 'conscription'): ScenarioDefinition {
     entities.actors = entities.actors.map(actor => ({ ...actor, actionIds: ['war-a'] }));
   }
   return {
-    id, version: '0.1.0', rulesVersion: 'g1-2', calendar: { startYear: 1410 },
+    id, version: '0.1.0', rulesVersion: 'g2-0', calendar: { startYear: 1410 },
     endTick: 540, parameters: parameters(), initial: entities,
   };
 }
@@ -151,9 +165,112 @@ function palaceScenario(): ScenarioDefinition {
     allocationWeight: 1, commitmentIds: [], sourceEventId: null,
   }];
   return {
-    id: 'palace-and-canal', version: '0.1.0', rulesVersion: 'g1-2',
+    id: 'palace-and-canal', version: '0.1.0', rulesVersion: 'g2-0',
     calendar: { startYear: 1410 }, endTick: 540,
     parameters: parameters(), initial: entities,
+  };
+}
+
+function transportRegion(id: string): RegionState {
+  return {
+    id, name: id, actorId: 'central', inventoryId: `stock-${id}`,
+    population: 1000, agriculturalCapacity: 0, laborCapacity: 1000,
+    subsistenceLabor: 0, agriculturalLabor: 0, corveeBurden: 0,
+    localRelations: 0, taxBase: 0,
+  };
+}
+
+function corridorInventory(id: string, grain: number): Inventory {
+  return { id: `stock-${id}`, ownerId: 'central', regionId: id, grain, materials: 0 };
+}
+
+// bottleneck vs wider-upstream: identical supply, demand and a 60/tick lock edge;
+// only the upstream edge capacity differs (100 vs 180), so widening the
+// non-bottleneck cannot raise deliveries. Water is intentionally absent.
+function corridorEntities(upstreamCapacity: number): SimulationEntities {
+  const regionIds = ['src', 'mid', 'dst'];
+  const actors: ActorState[] = [{
+    id: 'central', name: 'central', kind: 'central', regionIds,
+    goals: ['supply'], treasury: 100000, executionCapacity: 10000,
+    commitmentIds: [], actionIds: [],
+  }];
+  const transportNodes: TransportNode[] = regionIds.map(id => ({
+    id: `port-${id}`, regionId: id, inventoryId: `stock-${id}`, transferCapacity: 1000,
+  }));
+  const transportEdges: TransportEdge[] = [
+    { id: 'up', fromNodeId: 'port-src', toNodeId: 'port-mid', mode: 'canal',
+      waterEdgeId: null, capacity: upstreamCapacity, travelTicks: 1, lossRate: 0,
+      costPerLoad: 1, maxLoadClass: 'standard', openPeriods: [...ALL_PERIODS],
+      waterPerLoad: 0, available: true },
+    { id: 'lock', fromNodeId: 'port-mid', toNodeId: 'port-dst', mode: 'canal',
+      waterEdgeId: null, capacity: 60, travelTicks: 1, lossRate: 0,
+      costPerLoad: 1, maxLoadClass: 'standard', openPeriods: [...ALL_PERIODS],
+      waterPerLoad: 0, available: true },
+  ];
+  const demands: Demand[] = [{
+    id: 'd1', demandKey: 'supply-src-dst', ownerId: 'central',
+    fromNodeId: 'port-src', toNodeId: 'port-dst', purpose: 'civil', cargo: 'grain',
+    loadClass: 'standard', requested: 1000, fulfilled: 0, reservedInTransit: 0,
+    cancelled: 0, deadlineTick: 540, sourceEventId: null, status: 'active',
+  }];
+  return {
+    regions: regionIds.map(transportRegion),
+    actors, actions: [],
+    inventories: [corridorInventory('src', 10000), corridorInventory('mid', 0), corridorInventory('dst', 0)],
+    waterNodes: [], waterEdges: [], transportNodes, transportEdges,
+    reaches: [], projects: [], liabilities: [], commitments: [],
+    demands, inTransit: [], petitions: [],
+  };
+}
+
+// shared-water: one source node feeding two controlled locks. Each passing batch
+// releases waterPerLoad from the shared source to its branch, so the two
+// branches can never each consume the whole inflow.
+function sharedWaterEntities(): SimulationEntities {
+  const regionIds = ['src', 'a', 'b'];
+  const actors: ActorState[] = [{
+    id: 'central', name: 'central', kind: 'central', regionIds,
+    goals: ['supply'], treasury: 100000, executionCapacity: 10000,
+    commitmentIds: [], actionIds: [],
+  }];
+  const waterNodes: WaterNode[] = [
+    { id: 'ws', regionId: 'src', storage: 100, capacity: 1000, level: 1,
+      seasonalInflow: ALL_PERIODS.map(() => 0), irrigationRequest: 0, evaporation: 0, policy: 'balanced' },
+    { id: 'wa', regionId: 'a', storage: 0, capacity: 1000, level: 1,
+      seasonalInflow: ALL_PERIODS.map(() => 0), irrigationRequest: 0, evaporation: 0, policy: 'balanced' },
+    { id: 'wb', regionId: 'b', storage: 0, capacity: 1000, level: 1,
+      seasonalInflow: ALL_PERIODS.map(() => 0), irrigationRequest: 0, evaporation: 0, policy: 'balanced' },
+  ];
+  const waterEdges: WaterEdge[] = [
+    { id: 'we-a', fromNodeId: 'ws', toNodeId: 'wa', capacity: 1000, controlled: true, available: true },
+    { id: 'we-b', fromNodeId: 'ws', toNodeId: 'wb', capacity: 1000, controlled: true, available: true },
+  ];
+  const transportNodes: TransportNode[] = regionIds.map(id => ({
+    id: `port-${id}`, regionId: id, inventoryId: `stock-${id}`, transferCapacity: 1000,
+  }));
+  const transportEdges: TransportEdge[] = [
+    { id: 'te-a', fromNodeId: 'port-src', toNodeId: 'port-a', mode: 'canal',
+      waterEdgeId: 'we-a', capacity: 100, travelTicks: 1, lossRate: 0,
+      costPerLoad: 1, maxLoadClass: 'standard', openPeriods: [...ALL_PERIODS],
+      waterPerLoad: 1, available: true },
+    { id: 'te-b', fromNodeId: 'port-src', toNodeId: 'port-b', mode: 'canal',
+      waterEdgeId: 'we-b', capacity: 100, travelTicks: 1, lossRate: 0,
+      costPerLoad: 1, maxLoadClass: 'standard', openPeriods: [...ALL_PERIODS],
+      waterPerLoad: 1, available: true },
+  ];
+  const makeDemand = (id: string, toPort: string, key: string): Demand => ({
+    id, demandKey: key, ownerId: 'central', fromNodeId: 'port-src', toNodeId: toPort,
+    purpose: 'civil', cargo: 'grain', loadClass: 'standard', requested: 100, fulfilled: 0,
+    reservedInTransit: 0, cancelled: 0, deadlineTick: 540, sourceEventId: null, status: 'active',
+  });
+  return {
+    regions: regionIds.map(transportRegion),
+    actors, actions: [],
+    inventories: [corridorInventory('src', 10000), corridorInventory('a', 0), corridorInventory('b', 0)],
+    waterNodes, waterEdges, transportNodes, transportEdges,
+    reaches: [], projects: [], liabilities: [], commitments: [],
+    demands: [makeDemand('d-a', 'port-a', 'supply-a'), makeDemand('d-b', 'port-b', 'supply-b')],
+    inTransit: [], petitions: [],
   };
 }
 
@@ -161,7 +278,7 @@ export function makeScenario(name: FixtureName): ScenarioDefinition {
   switch (name) {
     case 'minimal':
       return {
-        id: 'minimal', version: '0.1.0', rulesVersion: 'g1-2',
+        id: 'minimal', version: '0.1.0', rulesVersion: 'g2-0',
         calendar: { startYear: 1410 }, endTick: 540,
         parameters: parameters(), initial: baseEntities(),
       };
@@ -170,7 +287,25 @@ export function makeScenario(name: FixtureName): ScenarioDefinition {
       return workScenario(name);
     case 'palace-and-canal':
       return palaceScenario();
+    case 'bottleneck':
+      return {
+        id: 'bottleneck', version: '0.1.0', rulesVersion: 'g2-0',
+        calendar: { startYear: 1410 }, endTick: 540,
+        parameters: parameters(), initial: corridorEntities(100),
+      };
+    case 'wider-upstream':
+      return {
+        id: 'wider-upstream', version: '0.1.0', rulesVersion: 'g2-0',
+        calendar: { startYear: 1410 }, endTick: 540,
+        parameters: parameters(), initial: corridorEntities(180),
+      };
+    case 'shared-water':
+      return {
+        id: 'shared-water', version: '0.1.0', rulesVersion: 'g2-0',
+        calendar: { startYear: 1410 }, endTick: 540,
+        parameters: parameters(), initial: sharedWaterEntities(),
+      };
     default:
-      throw new Error(`Fixture not implemented in T02/T03: ${name}`);
+      throw new Error(`Fixture not implemented yet: ${name}`);
   }
 }

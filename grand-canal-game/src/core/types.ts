@@ -104,15 +104,18 @@ export interface PreservationLiability {
 }
 export interface Demand {
   id: EntityId; demandKey: string; ownerId: EntityId; fromNodeId: EntityId; toNodeId: EntityId;
-  purpose: Purpose; cargo: 'grain' | 'materials'; requested: LoadUnit; fulfilled: LoadUnit;
+  purpose: Purpose; cargo: 'grain' | 'materials'; loadClass: LoadClass;
+  requested: LoadUnit; fulfilled: LoadUnit;
   reservedInTransit: LoadUnit; cancelled: LoadUnit; deadlineTick: Tick;
   sourceEventId: EntityId | null; status: 'active' | 'fulfilled' | 'expired' | 'cancelled';
 }
 export interface ShipmentBatch {
   id: EntityId; parentId: EntityId | null; demandId: EntityId; ownerId: EntityId;
-  purpose: Purpose; cargo: 'grain' | 'materials'; quantity: LoadUnit; lost: LoadUnit;
+  purpose: Purpose; cargo: 'grain' | 'materials'; loadClass: LoadClass;
+  quantity: LoadUnit; lost: LoadUnit;
   routeEdgeIds: readonly EntityId[]; routeIndex: number; currentNodeId: EntityId;
-  remainingTravelTicks: number; status: 'waiting' | 'travelling' | 'delivered' | 'lost';
+  remainingTravelTicks: number;
+  status: 'waiting' | 'travelling' | 'delivered' | 'returned' | 'lost';
 }
 export interface Fact {
   id: EntityId; text: string; relatedIds: readonly EntityId[];
@@ -171,8 +174,36 @@ export interface ProjectParameters {
   pausedDamageBpPerTick: BasisPoints;
   preservation: Readonly<Record<LoadClass, PreservationParameters>>;
 }
+// Water is an abstract stored/flowing unit; navigationMinLevel is an elevation
+// grade, not metres. Priority shares are fixed-point fractions 0..10000.
+export interface WaterParameters {
+  navigationMinLevel: number;
+  irrigationPriorityBp: Readonly<Record<WaterPolicy, BasisPoints>>;
+}
+// Transport is an abstract load network. maxBatchSizeByClass caps how many
+// standard loads one vessel of each grade carries; a heavier shipment is split
+// or transshipped when a route's tightest grade is lower. transitLaborPerLoad
+// bills every moved load against the same shared labor budget (0 = no labor).
+export interface TransportParameters {
+  maxBatchSizeByClass: Readonly<Record<LoadClass, LoadUnit>>;
+  transitLaborPerLoad: LaborUnit;
+  underfundedMaintenanceDamageBpPerTick: BasisPoints;
+}
+// A supply rule is a periodic, non-priced replenishment contract. It consumes
+// its destination stock every settlement and replenishes the real deficit up to
+// targetStock from one explicit source node. Rules never create cargo by
+// themselves; the existing transport ownership and capacity rules still decide
+// whether anything can actually move. The empty rule list keeps old fixtures
+// completely inert. Units are abstract loads per model period.
+export interface SupplyRule {
+  id: EntityId; sourceNodeId: EntityId; destNodeId: EntityId; ownerId: EntityId;
+  purpose: Purpose; cargo: 'grain' | 'materials';
+  targetStock: LoadUnit; consumptionPerTick: LoadUnit;
+}
+export interface SupplyParameters { rules: readonly SupplyRule[] }
 export interface BalanceParameters {
   version: string; labor: LaborParameters; projects: ProjectParameters;
+  water: WaterParameters; transport: TransportParameters; supply: SupplyParameters;
 }
 
 export interface TickCompletedEvent {

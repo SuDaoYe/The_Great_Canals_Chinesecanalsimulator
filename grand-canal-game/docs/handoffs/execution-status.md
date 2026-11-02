@@ -23,3 +23,7 @@ T01 实现会话已退出 0，CLI 报告 tokens used=98,273（工具报告值，
 T01 独立复核 PASS（DeepSeek Flash/high）。调度事件属于 T03/T05，T01 明确拒绝未实现队列；预检的 effectiveTick=4 要求在后续机制验收，不改变 T01 范围。结束后的空返回事件数组可变但不引用状态；状态不受影响。更完整的在途哈希敏感性用例随 T04 增补。
 
 G1 集成复核：控制器独立重跑 npm test（默认池）、npm run typecheck、npx tsx scripts/runG1.ts 均退出0；81项测试。DeepSeek沙箱中的forks/esbuild限制在控制器宿主未复现。安全退出、分配权重、生效旬、可撤回承诺已有回归；大修/小修出现真实设施收益和资源代价。秋后方案仍只是延迟对照，不能证明季节玩法。下一阶段T04/T05，尚无UI。
+
+T04 进行中：分支 codex/t04-water-transport，基线c1ee0b5；DeepSeek Harness/deepseek-v4-pro/high 单写入者。临时settings和启动日志位于系统TEMP/canal-agent-run，不入库，不改用户全局配置。控制器独立水量日历测试与T04-integration-review.md待验收。尚未提交/推送T04开发中源码。
+
+T04 已集成验收：Pro/high完成双网络与物流；Flash/high补齐自动补库和实际消费。控制器重跑npm test默认池：8文件113项通过；typecheck和npx tsx scripts/runG1.ts均退出0。控制器新增6项水/物流回归及2项补库回归保持通过。首版同一主体/目的节点/物资仅一条补库规则，避免重复预订；如未来需要多个来源需显式扩展协调分配。尚无UI、停点/祈愿、完整历史单局或长剧本继替。

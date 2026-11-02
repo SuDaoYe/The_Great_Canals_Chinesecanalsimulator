@@ -1,9 +1,12 @@
 import { transitionActions } from './actors';
 import { forcedLaborByRegion, allocateLabor, laborForActivity, projectLaborApplied } from './labor';
 import { siteRegionIdFor, trialReachEffects } from './projects';
+import { beginWater, finishWater } from './water';
+import { settleTransport } from './transport';
+import { consumeSupply, generateSupplyDemands } from './supply';
 import type {
-  ActorState, AgricultureLoss, CanalReachState, Commitment, GameState, Inventory, LaborAllocation,
-  PreservationLiability, ProjectState, RegionState, TickLedger,
+  ActorState, AgricultureLoss, CanalReachState, Commitment, Demand, GameState, Inventory,
+  LaborAllocation, PreservationLiability, ProjectState, RegionState, ShipmentBatch, TickLedger,
 } from './types';
 
 export interface TickSettlement {
@@ -15,6 +18,9 @@ export interface TickSettlement {
   inventories: readonly Inventory[];
   reaches: readonly CanalReachState[];
   liabilities: readonly PreservationLiability[];
+  demands: readonly Demand[];
+  inTransit: readonly ShipmentBatch[];
+  waterNodes: GameState['waterNodes'];
   ledger: TickLedger;
 }
 
@@ -102,16 +108,36 @@ function refundRetainedCommitments(
 
 export function runTickSettlement(state: GameState, nextTick: number): TickSettlement {
   const parameters = state.parameters;
-  const inventories = new Map(state.inventories.map(inventory => [inventory.id, inventory]));
   const commitments = new Map(state.commitments.map(commitment => [commitment.id, commitment]));
   const projects = new Map(state.projects.map(project => [project.id, project]));
   const liabilities = new Map(state.liabilities.map(liability => [liability.id, liability]));
   const actors = new Map(state.actors.map(actor => [actor.id, actor]));
   withdrawRevocableActionCommitments(state, nextTick, commitments, actors);
-  const labor: readonly LaborAllocation[] = allocateLabor(state, nextTick);
+  // Supply demand generation is deliberately before labor costing and transport
+  // settlement: it sees only the start-of-tick destination stock and cargo that
+  // is physically reserved on inbound batches. Consumption is applied later,
+  // after settleTransport, so this tick's arrivals can be eaten but not
+  // pre-consumed from phantom goods.
+  const generatedDemands = generateSupplyDemands(state);
+  const demandState: GameState = generatedDemands === state.demands
+    ? state : { ...state, demands: generatedDemands };
+  const labor: readonly LaborAllocation[] = allocateLabor(demandState, nextTick);
   const forced = forcedLaborByRegion(labor);
   let reaches: readonly CanalReachState[] = state.reaches;
   const actions = transitionActions(state, nextTick);
+  // Water is settled before transport so lock releases draw from real storage;
+  // transport then moves goods, charges tolls and releases lock water.
+  const waterCtx = beginWater(state, nextTick);
+  const transport = settleTransport(demandState, nextTick, labor, waterCtx, actors);
+  // Real consumption is a post-arrival debit. Only stock actually present at
+  // the destination is eaten; the exact total enters the cargo ledger below.
+  const supplyConsumption = consumeSupply(state, transport.inventories);
+  const inventories = new Map(supplyConsumption.inventories
+    .map(inventory => [inventory.id, inventory]));
+  const demands = transport.demands;
+  const inTransit = transport.inTransit;
+  const transportCargoLoss = transport.cargoLoss;
+  const supplyConsumed = supplyConsumption.consumed;
   let grainProduced = 0;
   let grainConsumed = 0;
   let materialsConsumed = 0;
@@ -303,10 +329,15 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     const allocatedAgriculture = labor
       .filter(row => row.activityId === `agriculture:${region.id}`)
       .reduce((sum, row) => sum + row.allocated, 0);
-    const output = region.agriculturalLabor > 0
+    const laborOutput = region.agriculturalLabor > 0
       ? Math.min(region.agriculturalCapacity,
         Math.floor(region.agriculturalCapacity * allocatedAgriculture / region.agriculturalLabor))
       : 0;
+    // Irrigation shortfall is a real constraint on agriculture, not cosmetic.
+    const irrigation = waterCtx.irrigationByRegion.get(region.id);
+    const fulfillmentBp = irrigation === undefined || irrigation.requested <= 0
+      ? 10000 : Math.floor(irrigation.delivered * 10000 / irrigation.requested);
+    const output = Math.floor(laborOutput * fulfillmentBp / 10000);
     const lostOutput = region.agriculturalCapacity - output;
     if (region.agriculturalLabor > 0) {
       agricultureLoss.push({
@@ -332,17 +363,47 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     ? { ...reach, closedUntil: null }
     : reach);
 
+  // Maintenance is real fiscal work: affordable maintenance charges the region
+  // actor; an active reach that needed maintenance but was unaffordable degrades
+  // instead of being maintained for free.
+  reaches = reaches.map(reach => {
+    if (reach.status !== 'active' || reach.maintenanceLabor <= 0) return reach;
+    const regionId = [...reach.regionIds].sort()[0];
+    if (regionId === undefined) return reach;
+    const region = state.regions.find(candidate => candidate.id === regionId);
+    if (region === undefined) return reach;
+    if (reach.maintenanceCost <= 0) return reach;
+    // A reach under active construction/dredge has its routine maintenance
+    // subsumed by the project; otherwise preventive maintenance is real paid
+    // work even when the canal is undamaged.
+    const underConstruction = state.projects.some(project =>
+      project.reachIds.includes(reach.id) && project.status === 'active'
+      && (project.phase === 'planned' || project.phase === 'construction' || project.phase === 'trial'));
+    if (underConstruction) return reach;
+    const actor = actors.get(region.actorId);
+    if (actor === undefined) return reach;
+    if (actor.treasury >= reach.maintenanceCost) {
+      actors.set(actor.id, { ...actor, treasury: actor.treasury - reach.maintenanceCost });
+      return reach;
+    }
+    return {
+      ...reach,
+      damage: Math.min(10000, reach.damage + parameters.transport.underfundedMaintenanceDamageBpPerTick),
+    };
+  });
+
+  const waterSettlement = finishWater(state, waterCtx);
   const nextInventories = [...inventories.values()].sort((a, b) => a.id < b.id ? -1 : 1);
-  const transitCargo = state.inTransit
+  const transitCargo = inTransit
     .filter(batch => batch.status === 'waiting' || batch.status === 'travelling')
     .reduce((sum, batch) => sum + batch.quantity, 0);
   const closingCargo = nextInventories.reduce((sum, inventory) => sum + inventory.grain + inventory.materials, 0)
     + transitCargo;
   const openingCargo = state.ledger.cargo.closing;
-  if (openingCargo + grainProduced - grainConsumed - materialsConsumed !== closingCargo) {
-    throw new Error('Cargo ledger does not reconcile with inventory and consumption');
+  const cargoConsumed = grainConsumed + materialsConsumed + transportCargoLoss + supplyConsumed;
+  if (openingCargo + grainProduced - cargoConsumed !== closingCargo) {
+    throw new Error('Cargo ledger does not reconcile with inventory, transit and consumption');
   }
-  const waterOpening = state.ledger.water.closing;
 
   return {
     regions,
@@ -353,12 +414,19 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     inventories: nextInventories,
     reaches: [...reaches].sort((a, b) => a.id < b.id ? -1 : 1),
     liabilities: [...liabilities.values()].sort((a, b) => a.id < b.id ? -1 : 1),
+    demands: [...demands].sort((a, b) => a.id < b.id ? -1 : 1),
+    inTransit: [...inTransit].sort((a, b) => a.id < b.id ? -1 : 1),
+    waterNodes: [...waterSettlement.nodes].sort((a, b) => a.id < b.id ? -1 : 1),
     ledger: {
       tick: nextTick, labor, agricultureLoss,
-      water: { opening: waterOpening, incoming: 0, outgoing: 0, consumed: 0, closing: waterOpening },
+      water: {
+        opening: waterSettlement.opening, incoming: waterSettlement.incoming,
+        outgoing: waterSettlement.outgoing, consumed: waterSettlement.consumed,
+        closing: waterSettlement.closing,
+      },
       cargo: {
         opening: openingCargo, incoming: grainProduced, outgoing: 0,
-        consumed: grainConsumed + materialsConsumed, closing: closingCargo,
+        consumed: cargoConsumed, closing: closingCargo,
       },
     },
   };
