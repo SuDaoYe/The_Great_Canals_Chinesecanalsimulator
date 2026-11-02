@@ -1,6 +1,6 @@
 # 大运河首个可玩剧本执行计划
 
-> **For agentic workers:** 使用 `executing-plans` 按任务执行；每次完成一个可独立验收的任务。步骤使用 `- [ ]` 记录。当前交付仅为文档，以下步骤尚未执行。
+> **For agentic workers:** 使用 `executing-plans` 按任务执行；每次完成一个可独立验收的任务。步骤使用 `- [ ]` 记录。T01 已实现并验证，见 [交接](../../handoffs/T01.md)；T02 及之后尚未执行。
 
 **Goal:** 实现玩家直接经营运河、人间自主争用资源、按关键节点推进的完整十五年单局。
 
@@ -19,7 +19,7 @@
 - 首局为 1410 年初至 1425 年初，36 旬/年，共 540 旬；该历法是游戏抽象。
 - 相同版本、种子和指令产生同一模拟状态；预览、AI、绘图不得改变正式随机流。
 - 无 API 仍可从开局运行到结局；密钥不进入浏览器、存档或代码仓库。
-- 游戏目录为 `S:/Programm/VibeCoding/murder-loop-ai/grand-canal-game`，所有下列命令均在此目录运行。相邻 atlas 只读使用；原悬疑游戏的 apps/packages 不在任务改动范围内。
+- 游戏目录为本仓库内的 `grand-canal-game/`（主工作副本：`S:/Programm/VibeCoding/The_Great_Canals_Chinesecanalsimulator/grand-canal-game`），所有下列命令均在此目录运行。相邻 atlas 只读使用；原悬疑游戏的 apps/packages 不在任务改动范围内。
 
 ## 交付顺序与模型
 
@@ -35,7 +35,7 @@
 
 ## 共享接口与测试夹具
 
-稳定导出沿用架构文档：`createGame`、`applyCommand`、`tick`、`advanceToDecision`、`preview`、`hashState`。所有模块通过 `src/core/index.ts` 对外提供这些函数，不导出 UI 可随意修改的全局状态。
+目标稳定导出沿用架构文档：`createGame`、`applyCommand`、`tick`、`advanceToDecision`、`preview`、`hashState`。模块实现后通过 `src/core/index.ts` 对外提供；T01 只导出已实现的 `createGame`、`tick`、`hashState` 和领域类型，不提前提供后续函数的占位实现，也不导出 UI 可随意修改的全局状态。
 
 T01 同时建立 `tests/fixtures/scenarios.ts` 和 `tests/fixtures/inspect.ts`。以下为固定夹具名称和语义，不能靠删掉事件让测试通过：
 
@@ -87,9 +87,9 @@ export function runTicks(state: GameState, scenario: ScenarioDefinition, count: 
 
 **Consumes：** 需求和架构，不依赖旧游戏代码。**Produces：** 完整实体类型、minimal、createGame/tick/hashState、可重复的分离随机流。
 
-- [ ] 确认目录和现有文件；在该目录初始化 npm 项目，保留设计文档；使用 `npm install --save-dev --save-exact typescript vitest tsx @types/node` 安装并锁定实际兼容版本。
-- [ ] 建立 strict tsconfig；package scripts 设置 `test: vitest run`、`typecheck: tsc --noEmit`；定义所有对外实体字段和单位，序列化不含函数、Map 隐式顺序或真实时间。
-- [ ] 建立 minimal 并写下列失败测试，再运行 `npm test -- tests/core/determinism.test.ts`。缺少函数或实现时应失败。
+- [x] 确认目录和现有文件；在该目录初始化 npm 项目，保留设计文档；使用 `npm install --save-dev --save-exact typescript vitest tsx @types/node` 安装并锁定实际兼容版本。
+- [x] 建立 strict tsconfig；package scripts 设置 `test: vitest run`、`typecheck: tsc --noEmit`；定义所有对外实体字段和单位，序列化不含函数、Map 隐式顺序或真实时间。
+- [x] 建立 minimal 并写下列失败测试，再运行 `npm test -- tests/core/determinism.test.ts`。缺少函数或实现时应失败。
 
 ```ts
 import { expect, test } from 'vitest';
@@ -107,8 +107,8 @@ test('same seed and ticks reproduce; input is not mutated', () => {
 });
 ```
 
-- [ ] 实现稳定序列化、起始状态和最小旬推进；随机状态属于 GameState，独立天气/人物流；加入跨年日期与 540 旬边界用例。
-- [ ] 运行 `npm run typecheck` 和上述测试，保存实际环境与输出摘要。检查只新增游戏目录文件后提交本任务变更。
+- [x] 实现稳定序列化、起始状态和最小旬推进；随机状态属于 GameState，独立天气/人物流；加入跨年日期与 540 旬边界用例。
+- [x] 运行 `npm run typecheck` 和上述测试，保存实际环境与输出摘要。检查仅修改游戏目录文件；本次按用户指示保留未提交状态，不执行 commit/push。
 
 ## T02：指令、承诺与工程生命周期
 
