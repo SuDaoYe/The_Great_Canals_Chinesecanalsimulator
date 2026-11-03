@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { scenarios } from '../trial/scenarios.js';
 import './style.css';
+import { MapDispatches, DispatchDetail, eventTitle, FieldAlbum, sceneTitles } from './Dispatches.jsx';
 import geography from './geography.json';
 
 const worker = new Worker(new URL('./simulation.worker.js', import.meta.url), { type: 'module' });
@@ -29,7 +30,36 @@ const phaseNames = { planned: '待开工', construction: '施工', trial: '试�
 const labelOffsets = { a: [32, 8], b: [-80, -18], c: [24, 0], d: [32, 18] };
 const positions = { a: [95, 235], b: [340, 150], c: [530, 65], d: [345, 350] };
 
-function App() {
+export function App({ atlas = false }) {
+  const [reading, setReading] = useState(null);
+  const [album,setAlbum] = useState({});
+  const dispatchOpener=useRef(null);
+  function remember(events,reset=false) {
+    if (!atlas) return;
+    setAlbum(previous=>{
+      const next=reset?{}:{...previous};
+      for(const event of events) {
+        if(sceneTitles[event.scene] && (!next[event.scene] || event.id>next[event.scene].id)) next[event.scene]=event;
+      }
+      return next;
+    });
+  }
+  function closeDispatch() {
+    setReading(null);
+    requestAnimationFrame(()=>{
+      const origin=dispatchOpener.current;
+      if(origin?.isConnected)origin.focus();
+      else document.querySelector('.atlas-lenses [aria-pressed=true]')?.focus();
+    });
+  }
+  const [seen,setSeen] = useState(()=>new Set());
+  function openDispatch(event) {
+    if(!reading)dispatchOpener.current=document.activeElement;
+    remember([event]);
+    setReading(event);
+    setSeen(current=>new Set([...current,event.id]));
+  }
+  const [lens,setLens] = useState('漕运');
   const [game, setGame] = useState(null);
   const [scenario, setScenario] = useState('ming');
   const [busy, setBusy] = useState(false);
@@ -42,7 +72,8 @@ function App() {
   const previewSequence = useRef(0);
   async function perform(payload) {
     setBusy(true); setError('');
-    try { setGame(await request(payload)); }
+    if (payload.type === 'start') {setReading(null);setSeen(new Set());}
+    try { const result=await request(payload);setGame(result);remember(result.log,payload.type==='start'); }
     catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
@@ -80,7 +111,7 @@ function App() {
     ['人间征役', game.metrics.externalLabor], ['缺粮旬数', game.metrics.emptyWarehouseTicks],
   ];
   return <>
-    <header><div><p className="eyebrow">THE GREAT CANALS · 大运河</p><h1>水脉与天下</h1>
+    <header><div><p className="eyebrow">THE GREAT CANALS · 大运河</p><h1>{atlas?'舆图纪事':'水脉与天下'}</h1>
       <p>天意定河事，人间自有兴衰。</p></div>
       <div className="scenario"><label htmlFor="scenario">展开河图</label>
         <select id="scenario" value={scenario} onChange={event => setScenario(event.target.value)} disabled={busy}>
@@ -95,10 +126,14 @@ function App() {
     {error && <p role="alert" className="error">{error}</p>}
     <section className="metrics">{metrics.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value.toLocaleString()}</strong></div>)}</section>
     {game.finished && <section className="ending"><p>河工总录</p><h2>{game.finished.title}</h2>
-      <p>{game.finished.cause}</p><p>{game.finished.world}</p><p>{game.finished.legacy}</p><p>{game.finished.responsibility}</p>
+      <p>{game.finished.cause}</p><p>{game.finished.world}</p>{atlas && <button onClick={()=>openDispatch({
+        id:'summary',kind:'ending',scene:'ending',regionId:null,tick:state.tick,voice:'史官',
+        text:game.finished.legacy+' '+game.finished.responsibility,facts:[['累计送达',game.metrics.grainDelivered],['缺粮旬数',game.metrics.emptyWarehouseTicks]],
+      })}>展开河工总录</button>}<p>{game.finished.legacy}</p><p>{game.finished.responsibility}</p>
       <button onClick={() => perform({ type: 'start', id: scenario, seed: 7 })}>重开一局</button></section>}
     <main><section className="map-panel"><div className="panel-heading"><h2>河图</h2><label><input type="checkbox" checked={showHistory} onChange={event=>setShowHistory(event.target.checked)}/>历史走廊</label></div>
-      <svg viewBox="0 0 650 430" role="img" aria-label="运河与粮仓示意地图">
+      {atlas && <nav className="atlas-lenses" aria-label="地图视角">{['漕运','水情','政局'].map(name=><button key={name} aria-pressed={lens===name} onClick={()=>setLens(name)}>{name}</button>)}</nav>}
+      <svg viewBox="0 0 650 430" role={atlas?'group':'img'} aria-label="运河与粮仓示意地图">
         <defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#d8d4c4" strokeWidth=".5"/></pattern></defs>
         <defs><clipPath id="bounds"><rect width="650" height="430"/></clipPath></defs>
         {state.scenarioId !== 'river-trial' && <g clipPath="url(#bounds)">
@@ -114,9 +149,14 @@ function App() {
         </path>)}</g>}
         {state.transportEdges.map(edge => {
           const from = mapPositions[edge.fromNodeId.replace('port-', '')], to = mapPositions[edge.toNodeId.replace('port-', '')];
+          const reachForEdge=state.reaches.find(item=>item.transportEdgeIds.includes(edge.id));
+          const water=state.waterEdges.find(item=>item.id===edge.waterEdgeId);
+          const cap=reachForEdge ? Math.floor(edge.capacity*(1-reachForEdge.silt/10000)*(1-reachForEdge.damage/10000)) : edge.capacity;
+          const label=!atlas ? '航程 '+edge.travelTicks+' 旬' : lens==='漕运' ? (reachForEdge?.closedUntil>state.tick ? '临时封航' : '河况上限 '+cap)
+            : lens==='水情' ? (water?.controlled?'每载用水 '+edge.waterPerLoad:'自然水道') : (edge.available?'辖境准入':'边界受限');
           return <g key={edge.id}><path d={'M'+from[0]+','+from[1]+' Q'+from[0]+','+to[1]+' '+to[0]+','+to[1]}
-            fill="none" stroke="#4f8793" strokeWidth={edge.id === 'transport-ab' ? 9 : 5} />
-            <text x={(from[0]+to[0])/2-95} y={(from[1]+to[1])/2-4} fontSize="12">航程 {edge.travelTicks} 旬</text></g>;
+            fill="none" stroke={atlas && lens==='政局' ? (edge.available?'#777341':'#ad452d') : atlas && lens==='水情' ? '#27688a' : '#4f8793'} strokeWidth={edge.id === 'transport-ab' ? 9 : 5} />
+            <text x={(from[0]+to[0])/2-95} y={(from[1]+to[1])/2-4} fontSize="12">{label}</text></g>;
         })}
         {state.regions.map(region => {
           const [x, y] = mapPositions[region.id];
@@ -124,9 +164,16 @@ function App() {
           const [dx,dy] = labelOffsets[region.id];
           return <g key={region.id}><line x1={x} y1={y} x2={x+dx} y2={y+dy} stroke="#7a8e80"/><circle cx={x} cy={y} r="8" fill={inventory.grain === 0 ? '#ac4c39' : '#345e52'}/>
             <text x={x+dx} y={y+dy} fontSize="16">{region.name === region.id ? ({a:'南仓',b:'北岸'}[region.id] ?? region.name) : region.name}</text>
-            <text x={x+dx} y={y+dy+19} fontSize="12">粮 {inventory.grain}</text></g>;
+            <text x={x+dx} y={y+dy+19} fontSize="12">{atlas && lens==='政局' ? '地方关系 '+region.localRelations : atlas && lens==='水情'
+              ? '蓄水 '+state.waterNodes.filter(n=>n.regionId===region.id).reduce((sum,n)=>sum+n.storage,0) : '粮 '+inventory.grain}</text></g>;
         })}
+        {atlas && <MapDispatches game={game} positions={mapPositions} seen={seen} read={openDispatch}/>}
       </svg>
+      {atlas && <p className="lens-caption">{{
+        '漕运':'河况上限由淤积与损伤决定。实际送达还受需求、水量和旅行时间影响。',
+        '水情':'节点标出蓄水，航段标出单位载量的过闸用水。下泄的水进入下游。',
+        '政局':'节点标出地方关系，航段标出辖境准入状态。跨境限制只影响运输。'
+      }[lens]}</p>}
       <div className="regions">{state.regions.map(region => <article key={region.id}><h3>{region.name}</h3>
         <p>人口 {region.population}　役负 {region.corveeBurden}</p>
         <small>税收归属 {region.actorId === 'central' ? '朝廷' : state.actors.find(actor=>actor.id===region.actorId)?.name}
@@ -157,9 +204,11 @@ function App() {
       <p className="caption">共享水源和狭窄河段决定瓶颈。河工、农业、军役与运输共用地区劳力。实际未足额消费才记为缺粮。</p>
     </section><section className="card"><h2>祭祀与河报</h2>
       <div className="reports">{game.log.slice(0,12).map(item => <article key={item.id}>
-        <small>第 {item.tick} 旬 · {item.voice}</small><p>{item.text}</p></article>)}</div>
+        {atlas && <button onClick={()=>openDispatch(item)}>{eventTitle(item)}</button>}<small>第 {item.tick} 旬 · {item.voice}</small><p>{item.text}</p></article>)}</div>
     </section></aside></main>
-    <footer>一年三十六旬 · 全部数量为游戏抽象单位 · <a href="/trial.html">两岸教学页</a></footer>
+    {atlas && reading && <DispatchDetail log={game.log} read={openDispatch} event={reading} onClose={closeDispatch} state={state}/>}
+    {atlas && <FieldAlbum events={Object.values(album)} read={openDispatch}/>}
+    <footer><a href={atlas?'/':'/atlas.html'}>{atlas?'原版河图':'舆图纪事版'}</a> · 一年三十六旬 · 全部数量为游戏抽象单位 · <a href="/trial.html">两岸教学页</a></footer>
   </>;
 }
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(<App atlas={document.body.classList.contains('atlas')}/>);
