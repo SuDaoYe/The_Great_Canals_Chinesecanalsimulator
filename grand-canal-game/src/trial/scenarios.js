@@ -6,12 +6,24 @@ export const scenarios = [
   { id: 'sui-tang', title: '隋前至五代 · 550—979', description: '六阶段长时段沙盘。运河与负担持续继承，政权权属转换仍待完善。' },
 ];
 
+scenarios.push(...[[550,'分流之世'],[581,'贯通南北'],[618,'旧渠新用'],[755,'兵乱与财赋'],[820,'河道与地方'],[907,'多国共水']].map(([year,title])=>({
+  id:'sui-tang-'+year,title:year+'年 · '+title,
+  description:'独立章节采用合成初态。连续长局保留已发生的河工与资源后果。',
+})));
+
 export function buildScenario(id) {
   const scenario = structuredClone(trial);
   if (id === 'trial') return scenario;
   scenario.id = 'campaign-' + id;
   scenario.calendar.startYear = id === 'ming' ? 1410 : 550;
   scenario.endTick = id === 'ming' ? 540 : 15480;
+  const chapterStart = Number(id.split('-').at(-1));
+  if (id.startsWith('sui-tang-') && Number.isInteger(chapterStart)) {
+    const nextYear = ({550:581,581:618,618:755,755:820,820:907,907:980})[chapterStart];
+    if (!nextYear) throw Error('未知章节。');
+    scenario.calendar.startYear = chapterStart;
+    scenario.endTick = (nextYear - chapterStart) * 36;
+  }
   scenario.parameters.world = { populationGrowthBp: 100, militaryCostPerTick: 8, palaceCostPerTick: 4 };
   const source = scenario.initial;
   const names = id === 'ming' ? ['江南', '淮安', '京畿', '杭州'] : ['江都', '洛阳', '涿郡', '余杭'];
@@ -20,12 +32,14 @@ export function buildScenario(id) {
   const water = source.waterNodes[0], port = source.transportNodes[0];
   const edge = source.transportEdges[0], channel = source.waterEdges[0], reach = source.reaches[0];
   source.regions = ids.map((id, i) => ({ ...region, id, name: names[i], inventoryId: 'stock-' + id,
-    agriculturalCapacity: i === 0 ? 80 : i === 3 ? 30 : 0, taxBase: 80 }));
+    agriculturalCapacity: i === 0 ? 80 : i === 3 ? 30 : 0,
+    agriculturalLabor: i === 0 || i === 3 ? 60 : 0, laborCapacity: i === 0 ? 400 : 100, taxBase: 80 }));
   source.inventories = ids.map((id, i) => ({ ...stock, id: 'stock-' + id, regionId: id,
-    grain: i === 0 ? 10000 : i === 3 ? 5000 : 120 }));
+    grain: i === 0 ? 10000 : i === 3 ? 5000 : 120,
+    materials: scenario.id === 'campaign-ming' ? 10000 : 100000 }));
   source.waterNodes = ids.map((id, i) => ({ ...water, id: 'water-' + id, regionId: id,
     capacity: 1000000, storage: i === 0 ? 300 : 100,
-    seasonalInflow: Array.from({ length: 36 }, (_, k) => i === 0 ? (k >= 12 && k <= 24 ? 45 : 20) : 0) }));
+    seasonalInflow: Array.from({ length: 36 }, (_, k) => i === 0 ? (k >= 12 && k <= 24 ? 120 : 60) : 0) }));
   source.transportNodes = ids.map(id => ({ ...port, id: 'port-' + id, regionId: id, inventoryId: 'stock-' + id }));
   const links = [['a', 'b'], ['b', 'c'], ['a', 'd']];
   source.waterEdges = links.map(([a, b]) => ({ ...channel, id: 'water-' + a + b, fromNodeId: 'water-' + a, toNodeId: 'water-' + b }));
@@ -36,7 +50,7 @@ export function buildScenario(id) {
     silt: i === 0 ? 6000 : 0, validPeriod: { fromYear: scenario.calendar.startYear, untilYearExclusive: null } }));
   scenario.parameters.supply.rules = ['b', 'c'].map((id, i) => ({ id: 'supply-' + id,
     sourceNodeId: 'port-a', destNodeId: 'port-' + id, ownerId: 'central', purpose: 'civil', cargo: 'grain',
-    targetStock: i === 0 ? 120 : 80, consumptionPerTick: i === 0 ? 15 : 6 }));
+    targetStock: i === 0 ? 120 : 80, consumptionPerTick: i === 0 ? 35 : 16 }));
   source.actions = [];
   for (let start = 6; start < scenario.endTick; start += 108) {
     const palace = Math.floor(start / 108) % 2 === 1;
@@ -50,7 +64,7 @@ export function buildScenario(id) {
 }
 
 export function chapterAt(state) {
-  if (state.scenarioId !== 'campaign-sui-tang') return '';
+  if (!state.scenarioId.startsWith('campaign-sui-tang')) return '';
   const year = state.calendar.startYear + Math.floor(state.tick / 36);
   return year < 581 ? '分流之世' : year < 618 ? '贯通南北' : year < 755 ? '旧渠新用'
     : year < 820 ? '兵乱与财赋' : year < 907 ? '河道与地方' : '多国共水';

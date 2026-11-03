@@ -138,6 +138,7 @@ export interface BalanceLedger {
   opening: number; incoming: number; outgoing: number; consumed: number; closing: number;
 }
 export interface TickLedger {
+  supplyConsumption?: { requested: number; consumed: number };
   tick: Tick; labor: readonly LaborAllocation[]; agricultureLoss: readonly AgricultureLoss[];
   water: BalanceLedger; cargo: BalanceLedger;
 }

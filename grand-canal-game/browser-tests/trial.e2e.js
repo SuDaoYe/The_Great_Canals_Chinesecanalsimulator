@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 test('plan, advance, restore a checkpoint and finish the trial',async({page})=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/trial.html');
   await page.getByRole('button',{name:'开工疏浚'}).click();
   await expect(page.locator('#project')).toContainText('工程进度');
   await page.locator('#advance').click();
@@ -17,7 +17,7 @@ test('plan, advance, restore a checkpoint and finish the trial',async({page})=>{
   expect(errors).toEqual([]);
 });
 test('world scenarios show four regions and settle annual population growth',async({page})=>{
-  await page.goto('/');
+  await page.goto('/trial.html');
   await page.locator('#scenario').selectOption('ming');
   await page.locator('#start-scenario').click();
   await expect(page.locator('#world-report')).toContainText('京畿');

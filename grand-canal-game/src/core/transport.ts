@@ -83,7 +83,7 @@ function edgeUsable(
   if (!edge.openPeriods.includes(period)) return false;
   if (loadRank(loadClass) > loadRank(edge.maxLoadClass)) return false;
   if (reach !== undefined) {
-    if (reach.status !== 'active') return false;
+    if (reach.status !== 'active' || reach.silt >= 10000 || reach.damage >= 10000) return false;
     if (reach.closedUntil !== null && nextTick < reach.closedUntil) return false;
     if (!reach.schedule[purpose].includes(period)) return false;
     if (loadRank(loadClass) > loadRank(reach.maxLoadClass)) return false;
@@ -159,7 +159,12 @@ export function settleTransport(
   const regionActor = new Map(state.regions.map(region => [region.id, region.actorId]));
 
   const capacity: Capacity = {
-    edgeRemaining: new Map(state.transportEdges.map(edge => [edge.id, edge.capacity])),
+    edgeRemaining: new Map(state.transportEdges.map(edge => {
+      const reach = reachByEdge.get(edge.id);
+      const condition = reach === undefined ? 1
+        : (10000 - reach.silt) * (10000 - reach.damage) / 100000000;
+      return [edge.id, Math.floor(edge.capacity * condition)];
+    })),
     nodeRemaining: new Map(state.transportNodes.map(node => [node.id, node.transferCapacity])),
     laborLoads: new Map(state.regions.map(region => [region.id, Number.POSITIVE_INFINITY])),
   };

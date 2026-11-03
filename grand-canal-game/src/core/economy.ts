@@ -407,7 +407,9 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     if (actor === undefined) return reach;
     if (actor.treasury >= reach.maintenanceCost) {
       actors.set(actor.id, { ...actor, treasury: actor.treasury - reach.maintenanceCost });
-      return reach;
+      const maintenanceWork = labor.filter(row => row.activityId === 'maintenance:' + reach.id)
+        .reduce((sum, row) => sum + row.allocated, 0);
+      return { ...reach, damage: Math.max(0, reach.damage - maintenanceWork) };
     }
     return {
       ...reach,
@@ -442,6 +444,7 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     waterNodes: [...waterSettlement.nodes].sort((a, b) => a.id < b.id ? -1 : 1),
     ledger: {
       tick: nextTick, labor, agricultureLoss,
+      supplyConsumption: { requested: state.parameters.supply.rules.reduce((sum, rule) => sum + rule.consumptionPerTick, 0), consumed: supplyConsumed },
       water: {
         opening: waterSettlement.opening, incoming: waterSettlement.incoming,
         outgoing: waterSettlement.outgoing, consumed: waterSettlement.consumed,
