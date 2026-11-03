@@ -11,7 +11,7 @@ import type {
 } from './types';
 
 const GRADES: readonly LoadClass[] = ['small', 'standard', 'heavy'];
-const KINDS: readonly ProjectKind[] = ['build', 'dredge', 'upgrade', 'reroute'];
+const KINDS: readonly ProjectKind[] = ['build', 'dredge', 'upgrade', 'narrow', 'reroute'];
 const MODES: readonly LaborMode[] = ['normal', 'urgent'];
 const MAINTENANCE: readonly MaintenancePolicy[] = ['minimum', 'standard', 'intensive'];
 const PASSAGE: readonly PassagePolicy[] = ['balanced', 'official_first', 'civil_first'];

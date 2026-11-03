@@ -32,7 +32,7 @@ export function workRequiredFor(
   parameters: BalanceParameters, kind: ProjectKind, grade: LoadClass, reachCount: number,
 ): number {
   const base = parameters.projects.workUnitsByGrade[grade];
-  const multiplier = parameters.projects.workMultiplierByKindBp[kind];
+  const multiplier = parameters.projects.workMultiplierByKindBp[kind === "narrow" ? "upgrade" : kind];
   return Math.ceil(base * multiplier * reachCount / 10000);
 }
 
@@ -173,9 +173,13 @@ export function trialReachEffects(
       const removed = Math.ceil(reach.silt * reductionBp / 10000);
       return { ...reach, status: 'active' as const, silt: Math.max(0, reach.silt - removed) };
     }
-    if (project.kind === 'build') return { ...reach, status: 'active' as const };
+    if (project.kind === 'build' || project.kind === 'reroute') return { ...reach, grade:project.grade, maxLoadClass:project.grade,status: 'active' as const };
+    if (project.kind === 'narrow') {
+      const grade = reach.grade === 'heavy' ? 'standard' as const : 'small' as const;
+      return {...reach,grade,maxLoadClass:grade,maintenanceCost:Math.max(1,reach.maintenanceCost-1)};
+    }
     if (project.kind === 'upgrade') {
-      return { ...reach, status: 'active' as const, grade: nextLoadClass(reach.grade),
+      return { ...reach, status: 'active' as const, grade: nextLoadClass(reach.grade), maintenanceCost:reach.maintenanceCost+1,
         maxLoadClass: nextLoadClass(reach.maxLoadClass) };
     }
     return { ...reach, status: 'active' as const };

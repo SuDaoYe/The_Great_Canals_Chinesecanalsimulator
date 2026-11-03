@@ -1,3 +1,4 @@
+import {waterSeason} from './waterSeason.js';
 import { buildScenario, scenarios, chapterAt } from '../trial/scenarios.js';
 import { createGame, applyCommand, tick, hashState, preview } from '../core/index.ts';
 import { drawRandom } from '../core/rng.ts';
@@ -172,13 +173,24 @@ export function advanceGame(limit = 36) {
     try {
       const oldHead = log[0]?.id;
       prepareYear();
+      const season=waterSeason(state.tick);
+      state={...state,transportEdges:state.transportEdges.map(edge=>{
+        if(state.waterEdges.find(w=>w.id===edge.waterEdgeId)?.controlled!==false)return edge;
+        const nominal=scenario.initial.transportEdges.find(e=>e.id===edge.id).capacity;
+        return {...edge,capacity:Math.floor(nominal*season.factor*(climate==='枯水' ? .6 : 1))};
+      })};
       const before = state;
       state = tick(state, scenario).state;
       transition(before);
       tally();
       if(state.parameters.world && state.tick % 36 === 0) {
+        const delivered = metrics.grainDelivered - (metrics.previousTaxDelivered ?? 0);
+        metrics.previousTaxDelivered = metrics.grainDelivered;
+        const bonus = Math.floor(delivered / 10);
+        state = {...state, actors: state.actors.map(actor=>actor.id==='central'?{...actor,treasury:actor.treasury+bonus}:actor)};
+        metrics.transportRevenue=bonus;
         const tax = state.regions.reduce((sum,region)=>sum+region.taxBase,0);
-        record('户部','岁收结算，各地按税收归属合计入账 '+tax+' 财政单位。','annual','tax');
+        record('户部','岁收结算，各地按税收归属合计入账 '+tax+'，本年实际送达 '+delivered+'，漕运增收 '+bonus+' 入中央国库。','annual','tax');
       }
       ending();
       if (log[0]?.id !== oldHead || state.tick % 36 === 0 || finished) break;
@@ -202,11 +214,11 @@ export function commandGame(command) {
   const project = state.projects.find(item => item.id === command.projectId);
   const reachId = command.reachId ?? command.reachIds?.[0] ?? project?.reachIds[0];
   const label = {
-    dredge:'财政已托管，实际进度取决于工地粮料与本旬劳力。',
+    build:'新渠已立项，完工试航后接入运网。',reroute:'先开替代渠，通航后旧渠进入退役保全。',upgrade:'拓宽渠槽将提高运力与岁修支出。',narrow:'缩小渠槽将降低运力和养护成本。',dredge:'财政已托管，实际进度取决于工地粮料与本旬劳力。',
     paused:'河工已暂停，完成的工作量保留。',active:'河工恢复，后续按实际配额推进。',
     close:'河段临时关闭，船队按通航日程等待。',open:'临时关闭已解除，船队仍受闸水与运力限制。',
   }[scene] ?? '投入与影响计入实际账本。';
-  record('河官', '运河方案已执行。'+label, 'command', scene,
+  record('河官', '运河方案已执行。'+label, 'command', ({build:'project-construction',reroute:'project-construction',upgrade:'dredge',narrow:'dredge',SET_REACH_STATUS:command.status==='active'?'open':'close',SET_MAINTENANCE:'dredge'})[scene]??scene,
     state.reaches.find(item => item.id === reachId)?.regionIds[0]);
   return view();
 }

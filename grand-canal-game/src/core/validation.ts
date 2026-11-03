@@ -87,7 +87,7 @@ const commitment = shape<Commitment>({
   sourceEventId: nullable(text),
 });
 const project = shape<ProjectState>({
-  id: text, kind: oneOf('build', 'dredge', 'upgrade', 'reroute'), reachIds: ids, sponsorIds: ids,
+  id: text, kind: oneOf('build', 'dredge', 'upgrade', 'narrow', 'reroute'), reachIds: ids, sponsorIds: ids,
   grade: load, laborMode: oneOf('normal', 'urgent'), startTick: quantity, allocationWeight: integer(1),
   phase: oneOf('survey', 'planned', 'construction', 'trial', 'operating', 'cancelled'),
   status: oneOf('active', 'paused', 'cancelled'), workRequired: quantity, workCompleted: quantity,

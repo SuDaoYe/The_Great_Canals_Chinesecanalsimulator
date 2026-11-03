@@ -11,9 +11,22 @@ scenarios.push(...[[550,'分流之世'],[581,'贯通南北'],[618,'旧渠新用'
   description:'独立章节采用合成初态。连续长局保留已发生的河工与资源后果。',
 })));
 
+function withCanalSites(scenario, teaching) {
+  const initial = scenario.initial;
+  const sites = teaching ? [['relief','南仓东汊','a','b',1]] :
+    [['relief','沿岸复渠','a','b',1],['inland','北向联运渠','a','c',3]];
+  for (const [id,name,from,to,travelTicks] of sites) {
+    const waterId='water-'+id, edgeId='transport-'+id;
+    initial.waterEdges.push({...initial.waterEdges[0],id:waterId,controlled:id!=='relief',fromNodeId:'water-'+from,toNodeId:'water-'+to});
+    initial.transportEdges.push({...initial.transportEdges[0],id:edgeId,waterEdgeId:waterId,fromNodeId:'port-'+from,toNodeId:'port-'+to,travelTicks,waterPerLoad:id==='relief'?0:1,costPerLoad:0});
+    initial.reaches.push({...initial.reaches[0],id,name,status:'candidate',grade:'standard',silt:0,damage:0,regionIds:[from,to],waterEdgeIds:[waterId],transportEdgeIds:[edgeId]});
+  }
+  return scenario;
+}
+
 export function buildScenario(id) {
   const scenario = structuredClone(trial);
-  if (id === 'trial') return scenario;
+  if (id === 'trial') { scenario.initial.regions[0].laborCapacity=240; scenario.parameters.world={populationGrowthBp:50,militaryCostPerTick:8,palaceCostPerTick:4}; return withCanalSites(scenario,true); }
   scenario.id = 'campaign-' + id;
   scenario.calendar.startYear = id === 'ming' ? 1410 : 550;
   scenario.endTick = id === 'ming' ? 540 : 15480;
@@ -42,9 +55,9 @@ export function buildScenario(id) {
     seasonalInflow: Array.from({ length: 36 }, (_, k) => i === 0 ? (k >= 12 && k <= 24 ? 120 : 60) : 0) }));
   source.transportNodes = ids.map(id => ({ ...port, id: 'port-' + id, regionId: id, inventoryId: 'stock-' + id }));
   const links = [['a', 'b'], ['b', 'c'], ['a', 'd']];
-  source.waterEdges = links.map(([a, b]) => ({ ...channel, id: 'water-' + a + b, fromNodeId: 'water-' + a, toNodeId: 'water-' + b }));
+  source.waterEdges = links.map(([a, b]) => ({ ...channel, id: 'water-' + a + b, controlled:b!=='d', fromNodeId: 'water-' + a, toNodeId: 'water-' + b }));
   source.transportEdges = links.map(([a, b]) => ({ ...edge, id: 'transport-' + a + b,
-    fromNodeId: 'port-' + a, toNodeId: 'port-' + b, waterEdgeId: 'water-' + a + b }));
+    fromNodeId: 'port-' + a, toNodeId: 'port-' + b, waterEdgeId: 'water-' + a + b, waterPerLoad:b==='d'?0:1 }));
   source.reaches = links.map(([a, b], i) => ({ ...reach, id: a + b, name: names[ids.indexOf(a)] + '—' + names[ids.indexOf(b)],
     regionIds: [a, b], waterEdgeIds: ['water-' + a + b], transportEdgeIds: ['transport-' + a + b],
     silt: i === 0 ? 6000 : 0, validPeriod: { fromYear: scenario.calendar.startYear, untilYearExclusive: null } }));
@@ -60,7 +73,7 @@ export function buildScenario(id) {
   }
   source.actors[0].regionIds = ids;
   source.actors[0].actionIds = source.actions.map(action => action.id);
-  return scenario;
+  return withCanalSites(scenario,false);
 }
 
 export function chapterAt(state) {
@@ -69,3 +82,4 @@ export function chapterAt(state) {
   return year < 581 ? '分流之世' : year < 618 ? '贯通南北' : year < 755 ? '旧渠新用'
     : year < 820 ? '兵乱与财赋' : year < 907 ? '河道与地方' : '多国共水';
 }
+

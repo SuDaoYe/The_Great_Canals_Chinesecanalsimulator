@@ -1,3 +1,6 @@
+import WaterKey from './WaterKey.jsx';
+import OpeningLesson from './OpeningLesson.jsx';
+import CanalWorks from './CanalWorks.jsx';
 import RiverGuide from './RiverGuide.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -70,6 +73,7 @@ export function App({ atlas = false }) {
   const [mode, setMode] = useState('normal');
   const [estimate, setEstimate] = useState(null);
   const [historical, setHistorical] = useState(null);
+  const [surveyed,setSurveyed]=useState(null);
   const [selectedEdge,setSelectedEdge]=useState(null);
 
   const [showHistory, setShowHistory] = useState(true);
@@ -77,7 +81,7 @@ export function App({ atlas = false }) {
   async function perform(payload) {
     setBusy(true); setError('');
     if (payload.type === 'start') {setReading(null);setSeen(new Set());}
-    try { const result=await request(payload);setGame(result);if(payload.type==='start'){setStarts(n=>n+1);setSelectedEdge(null);setGrade('small');setMode('normal');setLens('漕运');}remember(result.log,payload.type==='start'); }
+    try { const result=await request(payload);setGame(result);if(payload.type==='start'){setStarts(n=>n+1);setSurveyed(null);setSelectedEdge(null);setGrade('small');setMode('normal');setLens('漕运');}remember(result.log,payload.type==='start'); }
     catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
@@ -123,7 +127,8 @@ export function App({ atlas = false }) {
           {scenarios.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select><button id="start-scenario" disabled={busy} onClick={() => perform({ type: 'start', id: scenario, seed: 7 })}>开始剧本</button>
       </div></header>
-    {atlas && <RiverGuide {...{starts,scenario,lens,state,game,reading,project,grade,mode,estimate,reach}}/>}
+    {atlas && <p><a href="/atlas.html?practice=ming">正式关实操 · 明初江淮开渠</a>　<a href="/ming-opening.webp" target="_blank" rel="noreferrer">观看开渠操作演示（六步循环）</a></p>}
+    {atlas && new URLSearchParams(location.search).get("practice")==="ming" && state.scenarioId==="campaign-ming" ? <OpeningLesson key={starts} {...{state,selectedEdge,surveyed}}/> : atlas && <RiverGuide {...{starts,scenario,lens,state,game,reading,project,grade,mode,estimate,reach,selectedEdge,surveyed}}/>}
     <section className="timebar"><div><strong>{year} 年</strong> · {game.chapter || game.title}
       <small>已结算 {state.tick} / {state.endTick} 旬　／　{game.climate}</small></div>
       <div><button id="advance-one" disabled={disabled} onClick={() => perform({ type: 'advance', limit: 1 })}>推进一旬</button>
@@ -139,6 +144,7 @@ export function App({ atlas = false }) {
       <button onClick={() => perform({ type: 'start', id: scenario, seed: 7 })}>重开一局</button></section>}
     <main><section className="map-panel"><div className="panel-heading"><h2>{state.scenarioId==="river-trial"?"两岸河图":"河山舆图"}</h2><label hidden={state.scenarioId==="river-trial"}><input type="checkbox" checked={showHistory} onChange={event=>setShowHistory(event.target.checked)}/>历史走廊</label></div>
       {atlas && <nav className="atlas-lenses" aria-label="地图视角">{['漕运','水情','政局'].map(name=><button data-lens={name} key={name} aria-pressed={lens===name} onClick={()=>setLens(name)}>{name}</button>)}</nav>}
+      <WaterKey {...{state,selectedEdge}} climate={game.climate} select={setSelectedEdge}/>
       <svg viewBox="0 0 650 430" role={atlas?'group':'img'} aria-label="运河与粮仓示意地图">
         <defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#d8d4c4" strokeWidth=".5"/></pattern></defs>
         <defs><clipPath id="bounds"><rect width="650" height="430"/></clipPath></defs>
@@ -149,16 +155,21 @@ export function App({ atlas = false }) {
           onClick={()=>setHistorical(canal)} onKeyDown={event=>{if(event.key==='Enter')setHistorical(canal);}}>
           <title>{canal.name+' · '+canal.dateLabel}</title>
         </path>)}</g>}
-        {state.transportEdges.map(edge => {
+        {state.transportEdges.map((edge,index) => {
           const from = mapPositions[edge.fromNodeId.replace('port-', '')], to = mapPositions[edge.toNodeId.replace('port-', '')];
           const reachForEdge=state.reaches.find(item=>item.transportEdgeIds.includes(edge.id));
           const water=state.waterEdges.find(item=>item.id===edge.waterEdgeId);
-          const cap=reachForEdge ? Math.floor(edge.capacity*(1-reachForEdge.silt/10000)*(1-reachForEdge.damage/10000)) : edge.capacity;
-          const label=!atlas ? '航程 '+edge.travelTicks+' 旬' : lens==='漕运' ? (reachForEdge?.closedUntil>state.tick ? '临时封航' : '河况上限 '+cap)
+          const cap=reachForEdge ? Math.floor(edge.capacity*(reachForEdge.grade==='heavy'?1.6:reachForEdge.grade==='standard'?1.25:1)*(1-reachForEdge.silt/10000)*(1-reachForEdge.damage/10000)) : edge.capacity;
+          const label=reachForEdge?.status==='candidate'?'待开渠址':reachForEdge?.status!=='active'?'停航':!atlas ? '航程 '+edge.travelTicks+' 旬' : lens==='漕运' ? (reachForEdge?.closedUntil>state.tick ? '临时封航' : '河况上限 '+cap)
             : lens==='水情' ? (water?.controlled?'每载用水 '+edge.waterPerLoad:'自然水道') : (edge.available?'辖境准入':'边界受限');
-          return <g key={edge.id}><path className={"painted-course"} role={"button"} tabIndex={0} aria-label={"察看航段 "+edge.id} onClick={()=>setSelectedEdge(edge.id)} onKeyDown={e=>{if(e.key==="Enter")setSelectedEdge(edge.id)}} d={'M'+from[0]+','+from[1]+' Q'+from[0]+','+to[1]+' '+to[0]+','+to[1]}
-            fill="none" stroke={atlas && lens==='政局' ? (edge.available?'#777341':'#ad452d') : atlas && lens==='水情' ? '#27688a' : '#4f8793'} strokeWidth={edge.id === 'transport-ab' ? 9 : 5} />
-            <text className={"scroll-label"} x={(from[0]+to[0])/2-65} y={(from[1]+to[1])/2-4} fontSize="12">{label}</text></g>;
+          return <g key={edge.id}><path className={"painted-course"} role={"button"} tabIndex={0} aria-label={"察看航段 "+edge.id} onClick={()=>setSelectedEdge(edge.id)} onKeyDown={e=>{if(e.key==="Enter")setSelectedEdge(edge.id)}} d={'M'+from[0]+','+from[1]+' Q'+(from[0]+(reachForEdge?.id==='relief'?90:0))+','+to[1]+' '+to[0]+','+to[1]}
+            fill="none" style={{stroke:water?.controlled?'#24547b':'#236951',strokeDasharray:reachForEdge?.status==='candidate'?'2 5':water?.controlled?'8 3':'none'}} stroke={atlas && lens==='政局' ? (edge.available?'#777341':'#ad452d') : atlas && lens==='水情' ? '#27688a' : '#4f8793'} strokeWidth={edge.id === 'transport-ab' ? 9 : 5} />
+            <text className={"scroll-label"} x={(from[0]+to[0])/2-65} y={(from[1]+to[1])/2-4} dy={reachForEdge?.id==="relief"?21:0} fontSize="12">{index+1} {water?.controlled?"Ⅱ":"≈"} {label}</text></g>;
+        })}
+        {atlas && state.reaches.filter(r=>r.status==="candidate").map((r,i)=>{
+          const [from,to]=r.regionIds.map(id=>mapPositions[id]);
+          const x=(from[0]+to[0])/2+60+i*38,y=(from[1]+to[1])/2+28;
+          return <g key={r.id} id={"survey-"+r.id} role="button" tabIndex={0} aria-label={"勘选"+r.name} onClick={()=>{setSurveyed(r.id);setSelectedEdge(r.transportEdgeIds[0])}} onKeyDown={e=>{if(e.key==="Enter"){setSurveyed(r.id);setSelectedEdge(r.transportEdgeIds[0])}}} style={{cursor:"pointer"}}><path d={`M${x} ${y} l-35 -22`} stroke="#8a392a"/><rect x={x-12} y={y-14} width="24" height="24" rx="3" fill="#843f31"/><text x={x} y={y+3} textAnchor="middle" style={{fill:"white",stroke:"none"}}>勘</text></g>
         })}
         {state.regions.map(region => {
           const [x, y] = mapPositions[region.id];
@@ -184,7 +195,7 @@ export function App({ atlas = false }) {
         <p>{historical.basins}</p><p>{historical.politics}</p><p>{historical.impact}</p>
         <small>{historical.cost} {historical.uncertainty}</small></article>}
       <p className="caption">{state.scenarioId==="river-trial"?"两岸试局为教学示意。":"岸线、水系据 Natural Earth，山纹据 Terrain Tiles 当代高程绘制。虚线为历史走廊，运营航段为节点间的示意连接。" }</p>
-    </section><aside><section className="card"><h2>河事</h2>
+    </section><aside><CanalWorks {...{state,selectedEdge,command,request,disabled}} select={setSelectedEdge}/><section className="card"><h2>河事</h2>
       <p>{reach.name === reach.id ? '南北运道' : reach.name} · 残淤 {reach.silt} · 损伤 {reach.damage}</p>
       <label>疏浚规模 <select id="grade" value={grade} disabled={disabled} onChange={event => setGrade(event.target.value)}>
         <option value="small">小修</option><option value="standard">大修</option><option value="heavy">重修</option></select></label>
@@ -199,7 +210,7 @@ export function App({ atlas = false }) {
         })}>{project.status === 'paused' ? '复工' : '暂停工程'}</button></>}
       <div><button disabled={disabled} onClick={() => passage(true)}>封航三旬</button>
         <button disabled={disabled} onClick={() => passage(false)}>恢复通航</button></div>
-    </section><section className="card"><h2>本旬流水账</h2>
+    </section><section className="card"><h2>本旬流水账</h2><p>距岁收 {36-state.tick%36} 旬 · 中央辖区基础岁赋 {state.regions.filter(r=>r.actorId==="central").reduce((n,r)=>n+r.taxBase,0)} · 本年预计漕运增收 {Math.floor((game.metrics.grainDelivered-(game.metrics.previousTaxDelivered??0))/10)}</p><small>每年征一次赋。本局每实送 10 单位货物增收 1，军役、营建、养护按旬支出。</small>
       <p>来水 {state.ledger.water.incoming} · 灌溉及蒸散 {state.ledger.water.consumed} · 边界出水 {state.ledger.water.outgoing}</p>
       <p>货物生产 {state.ledger.cargo.incoming} · 实际消耗与损耗 {state.ledger.cargo.consumed}</p>
       {state.ledger.supplyConsumption && <p>口粮应供 {state.ledger.supplyConsumption.requested} · 实供 {state.ledger.supplyConsumption.consumed}</p>}
@@ -214,3 +225,4 @@ export function App({ atlas = false }) {
   </>;
 }
 createRoot(document.getElementById('root')).render(<App atlas={document.body.classList.contains('atlas')}/>);
+

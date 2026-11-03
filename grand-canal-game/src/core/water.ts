@@ -42,7 +42,8 @@ export function beginWater(state: GameState, nextTick: number): WaterContext {
   // Settlement k-1 -> k lives through period k-1 (tick 0 is the first period).
   const periodOfYear = (nextTick - 1) % TICKS_PER_YEAR;
   const storage = new Map(state.waterNodes.map(node => [node.id, node.storage]));
-  const edgeRemaining = new Map(state.waterEdges.map(edge => [edge.id, edge.capacity]));
+  const closedCuts = new Set(state.reaches.filter(r => r.status === 'candidate' || r.status === 'retired').flatMap(r => r.waterEdgeIds));
+  const edgeRemaining = new Map(state.waterEdges.map(edge => [edge.id, closedCuts.has(edge.id) ? 0 : edge.capacity]));
   const irrigationByRegion = new Map<string, IrrigationRecord>();
   let incoming = 0;
   let consumed = 0;

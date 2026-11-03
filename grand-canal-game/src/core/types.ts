@@ -13,7 +13,7 @@ export type PassagePolicy = 'balanced' | 'official_first' | 'civil_first';
 export type WaterPolicy = 'balanced' | 'navigation_first' | 'irrigation_first';
 export type LoadClass = 'small' | 'standard' | 'heavy';
 export type Purpose = 'official' | 'civil' | 'trade';
-export type ProjectKind = 'build' | 'dredge' | 'upgrade' | 'reroute';
+export type ProjectKind = 'build' | 'dredge' | 'upgrade' | 'narrow' | 'reroute';
 export type LaborMode = 'normal' | 'urgent';
 export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
@@ -164,7 +164,7 @@ export interface PreservationParameters {
 }
 export interface ProjectParameters {
   workUnitsByGrade: Readonly<Record<LoadClass, LaborUnit>>;
-  workMultiplierByKindBp: Readonly<Record<ProjectKind, BasisPoints>>;
+  workMultiplierByKindBp: Readonly<Record<Exclude<ProjectKind,'narrow'>, BasisPoints>>;
   // Experimental: share of the current silt a dredge of each grade removes.
   dredgeSiltReductionBpByGrade: Readonly<Record<LoadClass, BasisPoints>>;
   treasuryUnitsPerWork: TreasuryUnit;

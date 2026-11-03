@@ -1,3 +1,4 @@
+import {waterSeason} from '../game/waterSeason.js';
 import {buildScenario, scenarios, chapterAt} from './scenarios.js';
 let scenario = buildScenario('trial');
 import {createGame,applyCommand,tick,hashState,preview} from '../core/index.ts';
@@ -57,6 +58,8 @@ function render(){
     line.textContent=(action.kind==='palace'?'皇室营建':'中央军役')+' · '+(action.phase==='active'?'正在征发':'即将动员')+' · 请求劳力 '+action.laborRequest;
     return line;
   }));
+  const season=waterSeason(state.tick);
+  $('water-season').textContent='水情图例　'+season.symbol+' '+season.name+' · '+season.month+'月　｜　▽ 枯水　◇ 平水　▲ 丰水';
   const svg=document.querySelector('svg');
   svg.setAttribute('viewBox','0 0 650 430');
   svg.setAttribute('aria-label','水系示意图，节点状态对应下方地区数据');
@@ -76,10 +79,12 @@ function render(){
   for(const edge of state.transportEdges) {
     const from=positions[edge.fromNodeId.replace('port-','')],to=positions[edge.toNodeId.replace('port-','')];
     if(!from||!to)continue;
-    const bend=(from[0]+to[0])/2;
+    const reach=state.reaches.find(r=>r.transportEdgeIds.includes(edge.id));
+    const gated=state.waterEdges.find(w=>w.id===edge.waterEdgeId)?.controlled;
+    const bend=(from[0]+to[0])/2+(reach?.id==='relief'?90:0);
     const course='M'+from.join(' ')+' C'+bend+' '+(from[1]+24)+' '+bend+' '+(to[1]-22)+' '+to.join(' ');
     node('path',{d:course,fill:'none',stroke:'#f2ddac','stroke-width':3,'stroke-dasharray':'4 4'});
-    node('path',{d:course,fill:'none',stroke:'#685030','stroke-width':1.2,'stroke-dasharray':'4 4'});
+    node('path',{d:course,fill:'none',stroke:reach?.status==='candidate'?'#994d36':gated?'#24547b':'#236951','stroke-width':3,'stroke-dasharray':reach?.status==='candidate'?'2 5':gated?'8 3':'none'});
   }
   for(const region of state.regions){
     const [x,y]=positions[region.id];

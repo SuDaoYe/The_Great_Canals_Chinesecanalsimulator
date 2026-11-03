@@ -163,7 +163,7 @@ export function settleTransport(
       const reach = reachByEdge.get(edge.id);
       const condition = reach === undefined ? 1
         : (10000 - reach.silt) * (10000 - reach.damage) / 100000000;
-      return [edge.id, Math.floor(edge.capacity * condition)];
+      return [edge.id, Math.floor(edge.capacity * condition * (reach?.grade === 'heavy' ? 1.6 : reach?.grade === 'standard' ? 1.25 : 1))];
     })),
     nodeRemaining: new Map(state.transportNodes.map(node => [node.id, node.transferCapacity])),
     laborLoads: new Map(state.regions.map(region => [region.id, Number.POSITIVE_INFINITY])),
