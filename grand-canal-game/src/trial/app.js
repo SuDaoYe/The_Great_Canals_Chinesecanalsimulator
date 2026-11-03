@@ -58,9 +58,12 @@ function render(){
     return line;
   }));
   const svg=document.querySelector('svg');
-  svg.setAttribute('viewBox','0 0 560 220');
+  svg.setAttribute('viewBox','0 0 650 430');
   svg.setAttribute('aria-label','水系示意图，节点状态对应下方地区数据');
-  const positions={a:[65,100],b:[280,70],c:[485,35],d:[235,180]};
+  const teaching=state.scenarioId==='river-trial';
+  const toMap=([lon,lat])=>[(lon-105)*32.5,(43-lat)*430/19];
+  const sui=state.scenarioId.startsWith('campaign-sui-tang');
+  const positions=teaching?{a:[115,270],b:[520,135]}:{a:toMap([119.4,32.4]),b:toMap(sui?[112.45,34.62]:[119.02,33.6]),c:toMap(sui?[115.97,39.48]:[116.4,39.9]),d:toMap([120.15,30.27])};
   const elements=[];
   const node=(tag,attributes,text)=>{
     const element=document.createElementNS('http://www.w3.org/2000/svg',tag);
@@ -68,10 +71,15 @@ function render(){
     if(text)element.textContent=text;
     elements.push(element);
   };
+  if(!teaching)node('image',{href:'/hydrography.svg',width:650,height:430,preserveAspectRatio:'none'});
+  node('text',{x:614,y:22,'writing-mode':'vertical-rl',class:'scroll-title'},teaching?'兩岸試局 · 示意':'漕運');
   for(const edge of state.transportEdges) {
     const from=positions[edge.fromNodeId.replace('port-','')],to=positions[edge.toNodeId.replace('port-','')];
     if(!from||!to)continue;
-    node('line',{x1:from[0],y1:from[1],x2:to[0],y2:to[1],stroke:'#3d7986','stroke-width':7});
+    const bend=(from[0]+to[0])/2;
+    const course='M'+from.join(' ')+' C'+bend+' '+(from[1]+24)+' '+bend+' '+(to[1]-22)+' '+to.join(' ');
+    node('path',{d:course,fill:'none',stroke:'#f2ddac','stroke-width':3,'stroke-dasharray':'4 4'});
+    node('path',{d:course,fill:'none',stroke:'#685030','stroke-width':1.2,'stroke-dasharray':'4 4'});
   }
   for(const region of state.regions){
     const [x,y]=positions[region.id];
