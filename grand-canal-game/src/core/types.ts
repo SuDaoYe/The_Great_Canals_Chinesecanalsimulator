@@ -201,7 +201,12 @@ export interface SupplyRule {
   targetStock: LoadUnit; consumptionPerTick: LoadUnit;
 }
 export interface SupplyParameters { rules: readonly SupplyRule[] }
+export interface WorldParameters {
+  populationGrowthBp: number; militaryCostPerTick: number; palaceCostPerTick: number;
+}
+
 export interface BalanceParameters {
+  world?: WorldParameters;
   version: string; labor: LaborParameters; projects: ProjectParameters;
   water: WaterParameters; transport: TransportParameters; supply: SupplyParameters;
 }

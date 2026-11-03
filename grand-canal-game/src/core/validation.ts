@@ -157,6 +157,9 @@ const supplyRule = shape<SupplyRule>({
 });
 const supplyParameters = shape<SupplyParameters>({ rules: list(supplyRule) });
 const balanceParameters = shape<BalanceParameters>({
+  world: (value, path) => {
+    if (value !== undefined) shape({ populationGrowthBp: rate, militaryCostPerTick: quantity, palaceCostPerTick: quantity })(value, path);
+  },
   version: text, labor: laborParameters, projects: projectParameters,
   water: waterParameters, transport: transportParameters, supply: supplyParameters,
 });

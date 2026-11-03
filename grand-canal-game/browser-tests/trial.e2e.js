@@ -16,3 +16,17 @@ test('plan, advance, restore a checkpoint and finish the trial',async({page})=>{
   await expect(page.locator('#date')).toHaveText('两年河工实录');
   expect(errors).toEqual([]);
 });
+test('world scenarios show four regions and settle annual population growth',async({page})=>{
+  await page.goto('/');
+  await page.locator('#scenario').selectOption('ming');
+  await page.locator('#start-scenario').click();
+  await expect(page.locator('#world-report')).toContainText('京畿');
+  for(let i=0;i<36;i++)await page.locator('#step').click();
+  await expect(page.locator('#date')).toContainText('1411年');
+  await expect(page.locator('#metrics')).toContainText('10116');
+  await expect(page.locator('#world-report')).toContainText('江南 · 人口 1010');
+  await page.locator('#scenario').selectOption('sui-tang');
+  await page.locator('#start-scenario').click();
+  await expect(page.locator('#date')).toContainText('分流之世');
+  await expect(page.locator('#date')).toContainText('15480');
+});

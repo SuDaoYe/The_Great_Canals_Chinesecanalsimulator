@@ -325,7 +325,7 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
   }
 
   const agricultureLoss: AgricultureLoss[] = [];
-  const regions = state.regions.map(region => {
+  let regions = state.regions.map(region => {
     const allocatedAgriculture = labor
       .filter(row => row.activityId === `agriculture:${region.id}`)
       .reduce((sum, row) => sum + row.allocated, 0);
@@ -358,6 +358,29 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
       - parameters.labor.burdenRecoveryUnitsPerTick + gain);
     return { ...region, corveeBurden: burden };
   });
+
+  if (parameters.world !== undefined) {
+    const world = parameters.world;
+    for (const action of actions.filter(action => action.phase === 'active')) {
+      const actor = actors.get(action.actorId);
+      if (actor === undefined) continue;
+      const expense = action.kind === 'military' ? world.militaryCostPerTick
+        : action.kind === 'palace' ? world.palaceCostPerTick : 0;
+      actors.set(actor.id, { ...actor, treasury: Math.max(0, actor.treasury - expense) });
+    }
+    if (nextTick % 36 === 0) {
+      regions = regions.map(region => {
+        const stock = inventories.get(region.inventoryId);
+        const growth = stock !== undefined && stock.grain > 0
+          ? Math.floor(region.population * world.populationGrowthBp / 10000) : 0;
+        const actor = actors.get(region.actorId);
+        if (actor !== undefined) actors.set(actor.id, {
+          ...actor, treasury: actor.treasury + region.taxBase,
+        });
+        return { ...region, population: region.population + growth };
+      });
+    }
+  }
 
   reaches = reaches.map(reach => reach.closedUntil !== null && nextTick >= reach.closedUntil
     ? { ...reach, closedUntil: null }
