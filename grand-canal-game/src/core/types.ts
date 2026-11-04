@@ -26,7 +26,7 @@ export interface PassageSchedule {
 export interface ValidPeriod { fromYear: number; untilYearExclusive: number | null }
 export interface Inventory {
   id: EntityId; ownerId: EntityId; regionId: EntityId;
-  grain: GrainUnit; materials: MaterialUnit;
+  grain: GrainUnit; materials: MaterialUnit; goods?: number;
 }
 export interface RegionState {
   id: EntityId; name: string; actorId: EntityId; inventoryId: EntityId;
@@ -104,14 +104,14 @@ export interface PreservationLiability {
 }
 export interface Demand {
   id: EntityId; demandKey: string; ownerId: EntityId; fromNodeId: EntityId; toNodeId: EntityId;
-  purpose: Purpose; cargo: 'grain' | 'materials'; loadClass: LoadClass;
+  purpose: Purpose; cargo: 'grain' | 'materials' | 'goods'; loadClass: LoadClass;
   requested: LoadUnit; fulfilled: LoadUnit;
   reservedInTransit: LoadUnit; cancelled: LoadUnit; deadlineTick: Tick;
   sourceEventId: EntityId | null; status: 'active' | 'fulfilled' | 'expired' | 'cancelled';
 }
 export interface ShipmentBatch {
   id: EntityId; parentId: EntityId | null; demandId: EntityId; ownerId: EntityId;
-  purpose: Purpose; cargo: 'grain' | 'materials'; loadClass: LoadClass;
+  purpose: Purpose; cargo: 'grain' | 'materials' | 'goods'; loadClass: LoadClass;
   quantity: LoadUnit; lost: LoadUnit;
   routeEdgeIds: readonly EntityId[]; routeIndex: number; currentNodeId: EntityId;
   remainingTravelTicks: number;
@@ -198,7 +198,7 @@ export interface TransportParameters {
 // completely inert. Units are abstract loads per model period.
 export interface SupplyRule {
   id: EntityId; sourceNodeId: EntityId; destNodeId: EntityId; ownerId: EntityId;
-  purpose: Purpose; cargo: 'grain' | 'materials';
+  purpose: Purpose; cargo: 'grain' | 'materials' | 'goods';
   targetStock: LoadUnit; consumptionPerTick: LoadUnit;
 }
 export interface SupplyParameters { rules: readonly SupplyRule[] }

@@ -177,11 +177,11 @@ export function settleTransport(
 
   let cargoLoss = 0;
 
-  const adjustInventory = (inventoryId: string, cargo: 'grain' | 'materials', delta: number): void => {
+  const adjustInventory = (inventoryId: string, cargo: 'grain' | 'materials' | 'goods', delta: number): void => {
     const inventory = inventories.get(inventoryId);
     if (inventory === undefined) throw new Error(`Unknown inventory ${inventoryId}`);
     inventories.set(inventoryId, {
-      ...inventory, [cargo]: Math.max(0, inventory[cargo] + delta),
+      ...inventory, [cargo]: Math.max(0, (inventory[cargo]??0) + delta),
     });
   };
 
@@ -373,17 +373,25 @@ export function settleTransport(
 
   // Phase C: dispatch new batches for active demands.
   let seq = 0;
-  for (const original of byId([...demands.values()])) {
+  const queue=byId([...demands.values()]);
+  if (queue.some(d => d.cargo === 'goods')) {
+    const favoredCargo = nextTick % 2 === 0 ? 'goods' : 'grain';
+    queue.sort((a, b) => Number(b.cargo === favoredCargo) - Number(a.cargo === favoredCargo));
+  }
+  for (const original of queue) {
+    let choices=[...state.transportEdges];
+    while(choices.length){
     const demand = demands.get(original.id);
-    if (demand === undefined || demand.status !== 'active') continue;
+    if (demand === undefined || demand.status !== 'active') break;
     const dispatchable = demand.requested - demand.fulfilled
       - demand.reservedInTransit - demand.cancelled;
-    if (dispatchable <= 0) continue;
+    if (dispatchable <= 0) break;
     // Routing is load-class permissive: a heavier shipment transships down to the
     // route's tightest grade (split below), so load class never blocks a path.
-    const route = findRoute(state.transportEdges, reachByEdge,
+    const route = findRoute(choices.filter(e=>(capacity.edgeRemaining.get(e.id)??0)>0), reachByEdge,
       demand.fromNodeId, demand.toNodeId, nextTick, demand.purpose, 'small');
-    if (route === null || route.length === 0) continue;
+    if (route === null || route.length === 0) break;
+    choices=choices.filter(e=>e.id!==route[0]);
     let routeMinClass: LoadClass = 'heavy';
     for (const edgeId of route) {
       const edge = edgeById.get(edgeId);
@@ -425,7 +433,7 @@ export function settleTransport(
     if (sourceInventory === undefined) continue;
     // Source stock must belong to the demand owner; there is no implicit transfer.
     if (sourceInventory.ownerId !== demand.ownerId) continue;
-    q = Math.min(q, sourceInventory[demand.cargo]);
+    q = Math.min(q, sourceInventory[demand.cargo]??0);
     // First-edge toll (cross-actor) is a hard departure constraint.
     const firstFromNode = nodeById.get(firstEdge.fromNodeId);
     const firstCredit = firstFromNode === undefined ? undefined : regionActor.get(firstFromNode.regionId);
@@ -463,6 +471,7 @@ export function settleTransport(
     demands.set(demand.id, { ...demand, reservedInTransit: demand.reservedInTransit + q });
     for (const subBatch of subBatches) inTransit.set(subBatch.id, subBatch);
     seq += 1;
+    }
   }
 
   return {

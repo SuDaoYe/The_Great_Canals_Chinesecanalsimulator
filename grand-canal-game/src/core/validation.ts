@@ -56,7 +56,7 @@ const action = shape<ActorAction>({
   startTick: quantity, endTick: quantity, laborRequest: quantity, allocationWeight: integer(1),
   commitmentIds: ids, sourceEventId: nullable(text),
 });
-const inventory = shape<Inventory>({ id: text, ownerId: text, regionId: text, grain: quantity, materials: quantity });
+const inventory = shape<Inventory>({ id: text, ownerId: text, regionId: text, grain: quantity, materials: quantity, goods:(v,p)=>{if(v!==undefined)quantity(v,p)} });
 const waterNode = shape<WaterNode>({
   id: text, regionId: text, storage: quantity, capacity: quantity, level: signed,
   seasonalInflow: (v, p) => { list(quantity)(v, p); if ((v as unknown[]).length !== 36) fail(p, 'expected 36 periods'); },
@@ -105,14 +105,14 @@ const liability = shape<PreservationLiability>({
 });
 const demand = shape<Demand>({
   id: text, demandKey: text, ownerId: text, fromNodeId: text, toNodeId: text,
-  purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials'),
+  purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials','goods'),
   loadClass: load, requested: quantity, fulfilled: quantity, reservedInTransit: quantity,
   cancelled: quantity, deadlineTick: quantity, sourceEventId: nullable(text),
   status: oneOf('active', 'fulfilled', 'expired', 'cancelled'),
 });
 const shipment = shape<ShipmentBatch>({
   id: text, parentId: nullable(text), demandId: text, ownerId: text, purpose: oneOf('official', 'civil', 'trade'),
-  cargo: oneOf('grain', 'materials'), loadClass: load, quantity: quantity, lost: quantity,
+  cargo: oneOf('grain', 'materials','goods'), loadClass: load, quantity: quantity, lost: quantity,
   routeEdgeIds: ids, routeIndex: quantity, currentNodeId: text, remainingTravelTicks: quantity,
   status: oneOf('waiting', 'travelling', 'delivered', 'returned', 'lost'),
 });
@@ -152,7 +152,7 @@ const transportParameters = shape<TransportParameters>({
 });
 const supplyRule = shape<SupplyRule>({
   id: text, sourceNodeId: text, destNodeId: text, ownerId: text,
-  purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials'),
+  purpose: oneOf('official', 'civil', 'trade'), cargo: oneOf('grain', 'materials','goods'),
   targetStock: quantity, consumptionPerTick: quantity,
 });
 const supplyParameters = shape<SupplyParameters>({ rules: list(supplyRule) });

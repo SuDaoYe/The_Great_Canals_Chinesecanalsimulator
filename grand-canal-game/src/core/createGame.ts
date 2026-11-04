@@ -22,7 +22,7 @@ export function createGame(scenario: ScenarioDefinition, seed: number): GameStat
     inTransit: sorted(s.inTransit), petitions: sorted(s.petitions),
   } satisfies SimulationEntities;
   const water = initial.waterNodes.reduce((sum, n) => sum + n.storage, 0);
-  const cargo = initial.inventories.reduce((sum, i) => sum + i.grain + i.materials, 0)
+  const cargo = initial.inventories.reduce((sum, i) => sum + i.grain + i.materials + (i.goods??0), 0)
     + initial.inTransit.filter(b => b.status === 'waiting' || b.status === 'travelling')
       .reduce((sum, b) => sum + b.quantity, 0);
   return freezeOwned({

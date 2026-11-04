@@ -32,8 +32,9 @@ export function startGame(id, gameSeed = 7) {
   logCounter = 0;
   climate = '平水';
   finished = null;
-  metrics = { playerLabor: 0, externalLabor: 0, emptyWarehouseTicks: 0,
+  metrics = { quotas:{},flows:{}, marketValue:0, playerLabor: 0, externalLabor: 0, emptyWarehouseTicks: 0,
     grainDelivered: 0, worstBurden: 0, consecutiveEmpty: 0, years: 0 };
+  refreshCapacity();
   record('百姓', '愿运道常通，仓粮不绝。请观察各地供需，再决定河工。', 'petition', 'petition', 'b');
   return view();
 }
@@ -130,7 +131,7 @@ function tally() {
   if (empty) metrics.emptyWarehouseTicks += 1;
   metrics.consecutiveEmpty = empty ? metrics.consecutiveEmpty + 1 : 0;
   metrics.worstBurden = Math.max(metrics.worstBurden, ...state.regions.map(region => region.corveeBurden));
-  metrics.grainDelivered = state.demands.reduce((sum, demand) => sum + demand.fulfilled, 0);
+  metrics.grainDelivered = state.demands.filter(d=>d.cargo==="grain").reduce((sum, demand) => sum + demand.fulfilled, 0);
   metrics.years = Math.floor(state.tick / 36);
   if (metrics.consecutiveEmpty === 1) record('百姓', '本旬实际到粮不足，愿保运道。', 'petition', 'shortage');
   if (metrics.consecutiveEmpty === 36) record('地方', '供粮不足已持续一年，地方秩序承压。', 'crisis', 'famine');
@@ -162,6 +163,17 @@ function ending() {
   record('史官', finished.cause+' '+finished.world+' '+finished.responsibility, 'ending', scene);
 }
 
+function refreshCapacity(){
+ const season=waterSeason(state.tick);
+ state={...state,transportEdges:state.transportEdges.map(e=>{
+   const original=scenario.initial.transportEdges.find(x=>x.id===e.id);
+   const controlled=state.waterEdges.find(w=>w.id===e.waterEdgeId)?.controlled;
+   const factor=controlled?1:season.factor*(climate==='枯水'?.6:1);
+   const inspection=state.scenarioId==='river-trial'&&e.id==='transport-ab'&&state.tick>=23&&state.tick<26;
+   return {...e,available:state.scenarioId==='river-trial'?original.available&&!inspection:e.available,capacity:Math.floor(original.capacity*factor*(metrics.quotas[e.id]??100)/100)};
+ })};
+}
+
 export function advanceGame(limit = 36) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 360) throw Error('推进范围须为 1—360 旬。');
   for (let index = 0; index < limit && !finished; index += 1) {
@@ -173,16 +185,31 @@ export function advanceGame(limit = 36) {
     try {
       const oldHead = log[0]?.id;
       prepareYear();
-      const season=waterSeason(state.tick);
-      state={...state,transportEdges:state.transportEdges.map(edge=>{
-        if(state.waterEdges.find(w=>w.id===edge.waterEdgeId)?.controlled!==false)return edge;
-        const nominal=scenario.initial.transportEdges.find(e=>e.id===edge.id).capacity;
-        return {...edge,capacity:Math.floor(nominal*season.factor*(climate==='枯水' ? .6 : 1))};
-      })};
+      if(state.scenarioId==='river-trial'){
+        if(state.tick===3){climate='枯水';state={...state,waterNodes:state.waterNodes.map(n=>n.regionId==='a'?{...n,storage:Math.floor(n.storage/2),seasonalInflow:n.seasonalInflow.map(v=>Math.floor(v/2))}:n)};
+          // Reduced storage leaves the model as an external outflow before this settlement.
+          const closing=state.waterNodes.reduce((sum,n)=>sum+n.storage,0);
+          state={...state,ledger:{...state.ledger,water:{...state.ledger.water,outgoing:state.ledger.water.outgoing+state.ledger.water.closing-closing,closing}}};
+          record('水官','上游来水减半，闸前蓄水下降。旧渠发粮要等闸水，自流东汊则受浅水限载。','water','drought','a');}
+        if(state.tick===12){climate='平水';state={...state,waterNodes:state.waterNodes.map(n=>({...n,seasonalInflow:scenario.initial.waterNodes.find(x=>x.id===n.id).seasonalInflow}))};record('水官','上游来水恢复，已耗去的蓄水仍需补回。','water','calm','a');}
+        if(state.tick===23||state.tick===26)record('地方',state.tick===23?'北岸临检：旧渠暂停新发船三旬，已通的东汊可绕行。':'旧渠临检解除，依原船期放行。','politics','border','b');
+      }
+      refreshCapacity();
       const before = state;
       state = tick(state, scenario).state;
       transition(before);
       tally();
+      const flows={...metrics.flows};
+      for(const edge of state.transportEdges){
+        const departing=state.inTransit.filter(b=>b.status==='travelling'&&b.routeEdgeIds[b.routeIndex]===edge.id&&b.remainingTravelTicks===edge.travelTicks);
+        const last=cargo=>departing.filter(b=>b.cargo===cargo).reduce((sum,b)=>sum+b.quantity,0);
+        flows[edge.id]={grain:last('grain'),goods:last('goods'),total:(flows[edge.id]?.total??0)+last('grain')+last('goods')};
+      }
+      metrics.flows=flows;
+      for(const d of state.demands.filter(d=>d.cargo==='goods')){
+        const arrived=d.fulfilled-(before.demands.find(x=>x.id===d.id)?.fulfilled??0);
+        metrics.marketValue+=arrived*marketPrice(d.toNodeId);
+      }
       if(state.parameters.world && state.tick % 36 === 0) {
         const delivered = metrics.grainDelivered - (metrics.previousTaxDelivered ?? 0);
         metrics.previousTaxDelivered = metrics.grainDelivered;
@@ -202,8 +229,17 @@ export function advanceGame(limit = 36) {
   return view();
 }
 
+function marketPrice(dest){
+ // Destination preference and benchmark origin-to-market distance, independent of detours.
+ return dest==='port-c'?2+3+4:2+1+2;
+}
 export function commandGame(command) {
   if (finished) throw Error('本局已经结束。');
+  if(command.type==='SET_QUOTA'){
+    if(!state.transportEdges.some(e=>e.id===command.edgeId)||![0,25,50,75,100].includes(command.percent))throw Error('无效河段或限额');
+    metrics.quotas={...metrics.quotas,[command.edgeId]:command.percent};
+    refreshCapacity();return view();
+  }
   const result = applyCommand(state, {
     expectedRevision: state.revision, commandId: 'order-' + state.revision, command,
   }, scenario);

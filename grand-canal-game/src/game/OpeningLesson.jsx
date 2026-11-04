@@ -21,5 +21,5 @@ export default function OpeningLesson({state,selectedEdge,surveyed,teaching=fals
   const [title,hint,selector]=stages[step];
   useEffect(()=>{if(dismissed)return;const el=document.querySelector(selector);el?.classList.add('lesson-target');el?.scrollIntoView({block:'center'});return()=>el?.classList.remove('lesson-target')},[selector,dismissed]);
   if(dismissed)return null;
-  return <aside className="lesson-coach" aria-live="polite"><small>{teaching?"两岸试局 · 开渠通航":"明初漕运 · 江淮复渠实操"}　第 {step+1} / 6 步</small><h3>{title}</h3><p>{hint}</p>{step===2&&<p>已完工量 {project.workCompleted} / {project.workRequired}</p>}{teaching&&step===5&&<a href="/atlas.html?practice=ming">进入明初正式关</a>}<button onClick={()=>{setDismissed(true);onFinish?.()}}>{step===5?'继续经营':'退出指引'}</button></aside>
+  return <aside className="lesson-coach" aria-live="polite"><small>{teaching?"两岸试局 · 开渠通航":"明初漕运 · 江淮复渠实操"}　第 {step+1} / 6 步</small><h3>{title}</h3><p>{hint}</p>{teaching&&state.tick>=3&&<p>水报：{state.tick<12?'上游减水，旧渠闸耗和新渠浅水会以不同方式限制发运。':'上游来水已恢复。'} {state.tick>=23&&(state.tick<26?'政报：北岸临检，只能经东汊新发船。':'政报：临检已解除，两渠可按各自通航令发船。')}</p>}{step===2&&<p>已完工量 {project.workCompleted} / {project.workRequired}</p>}{teaching&&step===5&&<a href="/atlas.html?practice=ming">进入明初正式关</a>}<button onClick={()=>{setDismissed(true);onFinish?.()}}>{step===5?'继续经营':'退出指引'}</button></aside>
 }

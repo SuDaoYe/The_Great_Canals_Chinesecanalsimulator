@@ -138,6 +138,7 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
   const inTransit = transport.inTransit;
   const transportCargoLoss = transport.cargoLoss;
   const supplyConsumed = supplyConsumption.consumed;
+  let goodsProduced = 0;
   let grainProduced = 0;
   let grainConsumed = 0;
   let materialsConsumed = 0;
@@ -345,6 +346,10 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
         requiredLabor: region.agriculturalLabor, lostOutput,
       });
     }
+    if (state.parameters.supply.rules.some(rule=>rule.cargo==='goods' && state.transportNodes.some(n=>n.id===rule.sourceNodeId&&n.regionId===region.id))) {
+      const stock=inventories.get(region.inventoryId);
+      if(stock){const production=Math.floor(output/3);goodsProduced+=production;inventories.set(stock.id,{...stock,goods:(stock.goods??0)+production});}
+    }
     if (output > 0) {
       const inventory = inventories.get(region.inventoryId);
       if (inventory !== undefined) {
@@ -422,11 +427,11 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
   const transitCargo = inTransit
     .filter(batch => batch.status === 'waiting' || batch.status === 'travelling')
     .reduce((sum, batch) => sum + batch.quantity, 0);
-  const closingCargo = nextInventories.reduce((sum, inventory) => sum + inventory.grain + inventory.materials, 0)
+  const closingCargo = nextInventories.reduce((sum, inventory) => sum + inventory.grain + inventory.materials + (inventory.goods??0), 0)
     + transitCargo;
   const openingCargo = state.ledger.cargo.closing;
   const cargoConsumed = grainConsumed + materialsConsumed + transportCargoLoss + supplyConsumed;
-  if (openingCargo + grainProduced - cargoConsumed !== closingCargo) {
+  if (openingCargo + grainProduced + goodsProduced - cargoConsumed !== closingCargo) {
     throw new Error('Cargo ledger does not reconcile with inventory, transit and consumption');
   }
 
@@ -444,14 +449,14 @@ export function runTickSettlement(state: GameState, nextTick: number): TickSettl
     waterNodes: [...waterSettlement.nodes].sort((a, b) => a.id < b.id ? -1 : 1),
     ledger: {
       tick: nextTick, labor, agricultureLoss,
-      supplyConsumption: { requested: state.parameters.supply.rules.reduce((sum, rule) => sum + rule.consumptionPerTick, 0), consumed: supplyConsumed },
+      supplyConsumption: { requested: state.parameters.supply.rules.filter(r=>r.cargo==="grain").reduce((sum, rule) => sum + rule.consumptionPerTick, 0), consumed: supplyConsumption.grainConsumed },
       water: {
         opening: waterSettlement.opening, incoming: waterSettlement.incoming,
         outgoing: waterSettlement.outgoing, consumed: waterSettlement.consumed,
         closing: waterSettlement.closing,
       },
       cargo: {
-        opening: openingCargo, incoming: grainProduced, outgoing: 0,
+        opening: openingCargo, incoming: grainProduced + goodsProduced, outgoing: 0,
         consumed: cargoConsumed, closing: closingCargo,
       },
     },

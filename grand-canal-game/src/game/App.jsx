@@ -144,7 +144,7 @@ export function App({ atlas = false }) {
       <button onClick={() => perform({ type: 'start', id: scenario, seed: 7 })}>重开一局</button></section>}
     <main><section className="map-panel"><div className="panel-heading"><h2>{state.scenarioId==="river-trial"?"两岸河图":"河山舆图"}</h2><label hidden={state.scenarioId==="river-trial"}><input type="checkbox" checked={showHistory} onChange={event=>setShowHistory(event.target.checked)}/>历史走廊</label></div>
       {atlas && <nav className="atlas-lenses" aria-label="地图视角">{['漕运','水情','政局'].map(name=><button data-lens={name} key={name} aria-pressed={lens===name} onClick={()=>setLens(name)}>{name}</button>)}</nav>}
-      <WaterKey {...{state,selectedEdge}} climate={game.climate} select={setSelectedEdge}/>
+      <WaterKey flows={game.metrics.flows} {...{state,selectedEdge}} climate={game.climate} select={setSelectedEdge}/>
       <svg viewBox="0 0 650 430" role={atlas?'group':'img'} aria-label="运河与粮仓示意地图">
         <defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#d8d4c4" strokeWidth=".5"/></pattern></defs>
         <defs><clipPath id="bounds"><rect width="650" height="430"/></clipPath></defs>
@@ -195,8 +195,8 @@ export function App({ atlas = false }) {
         <p>{historical.basins}</p><p>{historical.politics}</p><p>{historical.impact}</p>
         <small>{historical.cost} {historical.uncertainty}</small></article>}
       <p className="caption">{state.scenarioId==="river-trial"?"两岸试局为教学示意。":"岸线、水系据 Natural Earth，山纹据 Terrain Tiles 当代高程绘制。虚线为历史走廊，运营航段为节点间的示意连接。" }</p>
-    </section><aside><CanalWorks {...{state,selectedEdge,command,request,disabled}} select={setSelectedEdge}/><section className="card"><h2>河事</h2>
-      <p>{reach.name === reach.id ? '南北运道' : reach.name} · 残淤 {reach.silt} · 损伤 {reach.damage}</p>
+    </section><aside><CanalWorks metrics={game.metrics} {...{state,selectedEdge,command,request,disabled}} select={setSelectedEdge}/><section className="card"><h2>河事</h2>
+      <p>{reach.name === reach.id ? '南北运道' : reach.name} · 淤积 {reach.silt/100}% · 损伤 {reach.damage/100}%</p>
       <label>疏浚规模 <select id="grade" value={grade} disabled={disabled} onChange={event => setGrade(event.target.value)}>
         <option value="small">小修</option><option value="standard">大修</option><option value="heavy">重修</option></select></label>
       <label>征役 <select id="labor" value={mode} disabled={disabled} onChange={event => setMode(event.target.value)}>
@@ -210,7 +210,7 @@ export function App({ atlas = false }) {
         })}>{project.status === 'paused' ? '复工' : '暂停工程'}</button></>}
       <div><button disabled={disabled} onClick={() => passage(true)}>封航三旬</button>
         <button disabled={disabled} onClick={() => passage(false)}>恢复通航</button></div>
-    </section><section className="card"><h2>本旬流水账</h2><p>距岁收 {36-state.tick%36} 旬 · 中央辖区基础岁赋 {state.regions.filter(r=>r.actorId==="central").reduce((n,r)=>n+r.taxBase,0)} · 本年预计漕运增收 {Math.floor((game.metrics.grainDelivered-(game.metrics.previousTaxDelivered??0))/10)}</p><small>每年征一次赋。本局每实送 10 单位货物增收 1，军役、营建、养护按旬支出。</small>
+    </section><section className="card"><h2>本旬流水账</h2><p><a href="/数值手册.md" target="_blank">数值手册与双渠算例</a> · 商市累计到货货值 {game.metrics.marketValue} · {state.regions.length===2?"南仓盐货 → 北岸，每载 5":(longCampaign?"江都盐货 → 洛阳，每载 5；涿郡每载 9":"江南盐货 → 淮安，每载 5；京畿每载 9")}（游戏估价）</p><p>距岁收 {36-state.tick%36} 旬 · 中央辖区基础岁赋 {state.regions.filter(r=>r.actorId==="central").reduce((n,r)=>n+r.taxBase,0)} · 本年预计漕运增收 {Math.floor((game.metrics.grainDelivered-(game.metrics.previousTaxDelivered??0))/10)}</p><small>每年征一次赋。本局每实送 10 单位货物增收 1，军役、营建、养护按旬支出。</small>
       <p>来水 {state.ledger.water.incoming} · 灌溉及蒸散 {state.ledger.water.consumed} · 边界出水 {state.ledger.water.outgoing}</p>
       <p>货物生产 {state.ledger.cargo.incoming} · 实际消耗与损耗 {state.ledger.cargo.consumed}</p>
       {state.ledger.supplyConsumption && <p>口粮应供 {state.ledger.supplyConsumption.requested} · 实供 {state.ledger.supplyConsumption.consumed}</p>}

@@ -32,13 +32,13 @@ export default function RiverGuide({starts,scenario,lens,state,game,project,grad
  const notes=['点击发光的「展开河图」下拉框，选择「两岸试局」。','点击「开始剧本」，从教学局第一旬学起。这会替换当前局面。',
  '明代经运河北运漕粮，供应京师。两岸试局用南仓、北岸缩演这道难题；这两座粮仓是教学设定。找出地图两端的粮数：'+state.inventories.map(i=>i.grain).join('、')+'。仓中有粮，不等于粮已送达。',
  '点「水情」。节点显示蓄水，受控航段会标出每载用水；水量也会限制船运。',
- '点回「漕运」，读航段旁的河况上限。它是通行能力，实际送达还要等船走完航程。',
+ '点回「漕运」，读航段旁的河况上限。淤积60%意味着断面剩40%，额定100、无损伤的小渠每旬最多过40载。实际送达还要等船走完航程。',
  '打开「疏浚规模」，选「大修」。这里只估价，不会扣钱。',
  '大修当前预算：'+price+'。记住这个数，再选「小修」，比较两种方案。',
  '小修预算：'+price+'；中央国库：'+treasury+'。征役栏选「常役」。河工与农业、军役争用劳力；这次先用常役，避免加急。',
  '点「开工疏浚」。先记国库 '+treasury+'、河工累计征役 '+game.metrics.playerLabor+'。批准工程和实际出工是两个时点。',
  '工程已立项。点真正的「推进一旬」，让河工、运输与口粮消耗一起结算。',
- '从立项前到第 '+state.tick+' 旬：国库 '+base?.treasury+' → '+treasury+'；河工征役 '+base?.labor+' → '+game.metrics.playerLabor+'；累计送达 '+base?.delivery+' → '+game.metrics.grainDelivered+'。'+(game.metrics.grainDelivered===base?.delivery?'本段时间没有新增送达，船在途中不会计入。':'送达增加，说明已有货物抵达。')+' 接下来观察残淤（当前 '+reach.silt+'）与工程进度，决定继续施工还是暂停。','打开选址，选「南仓东汊 · 待勘渠址」。这是一条尚无运力的新线。','查看工款、工量和粮料，点「批准另开新渠」。两处河工会争用当地劳力。','推进到关键节点，在勘渠面板观察施工和试航。试航结束后，新渠可分担旧渠运输，再决定岁修、拓宽或停养。','南仓东汊已接入运输网。货物按需求寻路；两岸有粮且有水、有船力时才会发运。观察累计送达，年底查户部岁收。'];
+ '从立项前到第 '+state.tick+' 旬：国库 '+base?.treasury+' → '+treasury+'；河工征役 '+base?.labor+' → '+game.metrics.playerLabor+'；累计送达 '+base?.delivery+' → '+game.metrics.grainDelivered+'。'+(game.metrics.grainDelivered===base?.delivery?'本段时间没有新增送达，船在途中不会计入。':'送达增加，说明已有货物抵达。')+' 接下来观察残淤（当前 '+reach.silt/100+'%）与工程进度，决定继续施工还是暂停。','打开选址，选「南仓东汊 · 待勘渠址」。这是一条尚无运力的新线。','查看工款、工量和粮料，点「批准另开新渠」。两处河工会争用当地劳力。','推进到关键节点，在勘渠面板观察施工和试航。试航结束后，新渠可分担旧渠运输，再决定岁修、拓宽或停养。','南仓东汊已接入运输网。货物按需求寻路；两岸有粮且有水、有船力时才会发运。观察累计送达，年底查户部岁收。'];
  return <aside className="lesson-coach" aria-label="两岸操作引导"><small>两岸试局 · 读图与岁修　{step+1} / 11</small><h3>{titles[step]}</h3><p aria-live="polite">{notes[step]}</p>
  {step===2&&<button onClick={()=>S(3)}>已找到粮仓，查水情</button>}
  {step===4&&<div><p>本旬为{waterSeason(state.tick).name}。对照图例，哪条线要过闸耗水？</p>{answer==='correct'?<strong>正确。现在点「漕运」查看运力。</strong>:<><button onClick={()=>setAnswer('retry')}>≈ 自流段</button><button onClick={()=>setAnswer('correct')}>Ⅱ 有闸段</button>{answer==='retry'&&<p>≈ 顺水行舟，试试带双竖线的河段。</p>}</>}</div>}

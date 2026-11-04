@@ -61,7 +61,7 @@ export function generateSupplyDemands(state: GameState): readonly Demand[] {
     if (existing !== undefined && existing.status === 'cancelled') continue;
     const inventory = inventoryAtNode(state, rule.destNodeId);
     if (inventory === undefined) continue;
-    const stock = inventory.ownerId === rule.ownerId ? inventory[rule.cargo] : 0;
+    const stock = inventory.ownerId === rule.ownerId ? (inventory[rule.cargo]??0) : 0;
     const reserved = inboundReserved(state, rule);
     const deficit = Math.max(0, rule.targetStock - stock - reserved);
     if (existing === undefined) {
@@ -90,7 +90,7 @@ export function generateSupplyDemands(state: GameState): readonly Demand[] {
 
 export interface SupplyConsumptionResult {
   inventories: readonly Inventory[];
-  consumed: number;
+  consumed: number; grainConsumed:number;
 }
 
 // Settlement step after transport arrival. Each rule consumes at most its
@@ -102,19 +102,19 @@ export function consumeSupply(
 ): SupplyConsumptionResult {
   const rules = byId(state.parameters.supply.rules);
   if (rules.length === 0) {
-    return { inventories: inventoriesAfterTransport, consumed: 0 };
+    return { inventories: inventoriesAfterTransport, consumed: 0,grainConsumed:0 };
   }
   const inventories = new Map(inventoriesAfterTransport.map(inventory => [inventory.id, inventory]));
-  let consumed = 0;
+  let consumed = 0, grainConsumed=0;
   for (const rule of rules) {
     const inventory = inventoryAtNode(state, rule.destNodeId);
     if (inventory === undefined) continue;
     const current = inventories.get(inventory.id);
     if (current === undefined || current.ownerId !== rule.ownerId) continue;
-    const amount = Math.min(rule.consumptionPerTick, current[rule.cargo]);
+    const amount = Math.min(rule.consumptionPerTick, (current[rule.cargo]??0));
     if (amount <= 0) continue;
-    inventories.set(current.id, { ...current, [rule.cargo]: current[rule.cargo] - amount });
-    consumed += amount;
+    inventories.set(current.id, { ...current, [rule.cargo]: (current[rule.cargo]??0) - amount });
+    consumed += amount; if(rule.cargo==='grain')grainConsumed+=amount;
   }
-  return { inventories: byId([...inventories.values()]), consumed };
+  return { inventories: byId([...inventories.values()]), consumed,grainConsumed };
 }

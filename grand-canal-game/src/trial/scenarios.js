@@ -21,6 +21,10 @@ function withCanalSites(scenario, teaching) {
     initial.transportEdges.push({...initial.transportEdges[0],id:edgeId,waterEdgeId:waterId,fromNodeId:'port-'+from,toNodeId:'port-'+to,travelTicks,waterPerLoad:id==='relief'?0:1,costPerLoad:0});
     initial.reaches.push({...initial.reaches[0],id,name,status:'candidate',grade:'standard',silt:0,damage:0,regionIds:[from,to],waterEdgeIds:[waterId],transportEdgeIds:[edgeId]});
   }
+  for(const [dest,consumption] of (teaching?[['b',6]]:[['b',5],['c',12]])){
+    initial.inventories.find(i=>i.regionId==='a').goods=180;
+    scenario.parameters.supply.rules.push({id:'market-'+dest,sourceNodeId:'port-a',destNodeId:'port-'+dest,ownerId:'central',purpose:'trade',cargo:'goods',targetStock:consumption*3,consumptionPerTick:consumption});
+  }
   return scenario;
 }
 
